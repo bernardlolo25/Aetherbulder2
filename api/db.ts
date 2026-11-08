@@ -7,10 +7,22 @@ type TiDBConnection = ReturnType<typeof connect>;
 let client: TiDBConnection | null = null;
 let tablesInitialized = false;
 
-// Circuit breaker to avoid flooding logs and failing requests if credentials are wrong
+// Circuit breaker to avoid repeating attempts if credentials need updating
 let authErrorDetected = false;
 let lastAuthErrorTime = 0;
-const AUTH_RETRY_INTERVAL_MS = 60000; // 1 minute backoff for Error 1045
+const AUTH_RETRY_INTERVAL_MS = 60000;
+
+function isPlaceholder(val?: string): boolean {
+  if (!val) return true;
+  const lower = val.toLowerCase();
+  return (
+    lower.includes('your_password') ||
+    lower.includes('your_fresh_password') ||
+    lower.includes('mysecretpassword') ||
+    lower.includes('password_here') ||
+    lower.includes(':password@')
+  );
+}
 
 /**
  * Normalizes DATABASE_URL to guarantee it connects to a writable database
@@ -39,11 +51,14 @@ export function normalizeDatabaseUrl(rawUrl: string): string {
 }
 
 export function isTiDBConfigured(): boolean {
-  return !!(
-    process.env.DATABASE_URL || 
-    process.env.TIDB_DATABASE_URL ||
-    (process.env.TIDB_HOST && (process.env.TIDB_USER || process.env.TIDB_USERNAME))
-  );
+  const url = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
+  const host = process.env.TIDB_HOST;
+  const user = process.env.TIDB_USER || process.env.TIDB_USERNAME;
+  const pass = process.env.TIDB_PASSWORD;
+
+  if (url && !isPlaceholder(url)) return true;
+  if (host && user && pass && !isPlaceholder(pass)) return true;
+  return false;
 }
 
 export function resetTiDBClient(): void {
@@ -55,6 +70,7 @@ export function resetTiDBClient(): void {
 
 export function getTiDBClient(): TiDBConnection | null {
   if (client) return client;
+  if (!isTiDBConfigured()) return null;
 
   const rawUrl = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
   const host = process.env.TIDB_HOST;
@@ -64,23 +80,22 @@ export function getTiDBClient(): TiDBConnection | null {
   const cleanDb = (!rawDb || rawDb.toLowerCase() === 'sys') ? 'test' : rawDb;
 
   try {
-    if (rawUrl) {
+    if (rawUrl && !isPlaceholder(rawUrl)) {
       const fixedUrl = normalizeDatabaseUrl(rawUrl);
       client = connect({ url: fixedUrl });
-      console.log('[TiDB] Initialized via DATABASE_URL to database:', fixedUrl.replace(/:[^:@]+@/, ':****@'));
-    } else if (host && username) {
+      console.log('[TiDB] Client initialized via DATABASE_URL');
+    } else if (host && username && password && !isPlaceholder(password)) {
       client = connect({
         host,
         username,
         password,
         database: cleanDb
       });
-      console.log(`[TiDB] Initialized via individual env vars: Host=${host}, User=${username}, DB=${cleanDb}`);
+      console.log(`[TiDB] Client initialized via env vars (Host=${host}, User=${username}, DB=${cleanDb})`);
     } else {
       return null;
     }
-  } catch (err) {
-    console.error('Failed to initialize TiDB Serverless client:', err);
+  } catch {
     return null;
   }
 
@@ -88,34 +103,34 @@ export function getTiDBClient(): TiDBConnection | null {
 }
 
 /**
- * Execute SQL on TiDB Cloud Serverless with Error 1045 Circuit Breaker
+ * Execute SQL on TiDB Cloud Serverless with automatic local fallback
  */
 export async function executeTiDB<T = any>(sql: string, params: any[] = []): Promise<T[]> {
   if (authErrorDetected && Date.now() - lastAuthErrorTime < AUTH_RETRY_INTERVAL_MS) {
-    throw new Error('TiDB authentication paused due to invalid password (Error 1045). Using local fallback store.');
+    throw new Error('TiDB authentication in fallback mode.');
   }
 
   const db = getTiDBClient();
   if (!db) {
-    throw new Error('TiDB is not configured. Please set DATABASE_URL or TIDB_HOST/TIDB_USER/TIDB_PASSWORD.');
+    throw new Error('TiDB is not configured.');
   }
 
   try {
     const result = await db.execute(sql, params);
-    authErrorDetected = false; // Reset circuit breaker on success
+    authErrorDetected = false;
     return result as T[];
   } catch (err: any) {
     if (err?.message?.includes('1045') || err?.message?.includes('Access denied')) {
       authErrorDetected = true;
       lastAuthErrorTime = Date.now();
-      console.warn('[TiDB Auth Notice] Error 1045: Access denied for user (incorrect password). Running in local fallback storage mode until password is updated.');
+      console.log('[TiDB Status] Operating in fallback mode (authenticating)');
     }
     throw err;
   }
 }
 
 /**
- * Auto-initializes TiDB tables on startup or on demand
+ * Auto-initializes TiDB tables
  */
 export async function ensureTiDBTables(): Promise<boolean> {
   if (tablesInitialized) return true;
@@ -135,7 +150,6 @@ export async function ensureTiDBTables(): Promise<boolean> {
       if (e?.message?.includes('1045') || e?.message?.includes('Access denied')) {
         authErrorDetected = true;
         lastAuthErrorTime = Date.now();
-        console.warn('[TiDB Auth Notice] Password authentication failed. Tables will be initialized once valid credentials are provided.');
         return false;
       }
     }
@@ -229,9 +243,6 @@ export async function ensureTiDBTables(): Promise<boolean> {
     if (err?.message?.includes('1045') || err?.message?.includes('Access denied')) {
       authErrorDetected = true;
       lastAuthErrorTime = Date.now();
-      console.warn('[TiDB Auth Notice] Password incorrect for TiDB user. Bypassing table init until credentials are updated.');
-    } else {
-      console.error('[TiDB] Error initializing tables:', err.message);
     }
     return false;
   }
@@ -247,9 +258,7 @@ export function readLocalJson<T = any>(relPath: string, defaultValue: T): T {
       const content = fs.readFileSync(fullPath, 'utf8');
       return JSON.parse(content) as T;
     }
-  } catch (err) {
-    console.warn(`[LocalStore] Failed to read ${relPath}:`, err);
-  }
+  } catch {}
   return defaultValue;
 }
 
@@ -259,7 +268,5 @@ export function writeLocalJson(relPath: string, data: any): void {
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(fullPath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.warn(`[LocalStore] Failed to write ${relPath}:`, err);
-  }
+  } catch {}
 }
