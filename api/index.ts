@@ -99,30 +99,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const jsonStr = typeof siteData === 'string' ? siteData : JSON.stringify(siteData);
 
       if (useTiDB) {
-        // Save current site into TiDB
-        await executeTiDB(`
-          INSERT INTO aether_sites (id, site_name, data, updated_at) 
-          VALUES ('default', ?, ?, NOW(6))
-          ON DUPLICATE KEY UPDATE data = VALUES(data), site_name = VALUES(site_name), updated_at = NOW(6)
-        `, [siteTitle, jsonStr]);
+        try {
+          // Save current site into TiDB
+          await executeTiDB(`
+            INSERT INTO aether_sites (id, site_name, data, updated_at) 
+            VALUES ('default', ?, ?, NOW(6))
+            ON DUPLICATE KEY UPDATE data = VALUES(data), site_name = VALUES(site_name), updated_at = NOW(6)
+          `, [siteTitle, jsonStr]);
 
-        // Auto-create a revision snapshot
-        const revId = 'rev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-        await executeTiDB(`
-          INSERT INTO aether_revisions 
-          (id, saved_at, formatted_date, site_name, page_count, total_sections, size_bytes, label, snapshot)
-          VALUES (?, NOW(6), ?, ?, ?, ?, ?, 'Publish Snapshot', ?)
-        `, [
-          revId,
-          new Date().toLocaleString(),
-          siteTitle,
-          pagesCount,
-          siteData.sections?.length || 0,
-          Buffer.byteLength(jsonStr, 'utf8'),
-          jsonStr
-        ]);
+          // Auto-create a revision snapshot
+          const revId = 'rev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+          await executeTiDB(`
+            INSERT INTO aether_revisions 
+            (id, saved_at, formatted_date, site_name, page_count, total_sections, size_bytes, label, snapshot)
+            VALUES (?, NOW(6), ?, ?, ?, ?, ?, 'Publish Snapshot', ?)
+          `, [
+            revId,
+            new Date().toLocaleString(),
+            siteTitle,
+            pagesCount,
+            siteData.sections?.length || 0,
+            Buffer.byteLength(jsonStr, 'utf8'),
+            jsonStr
+          ]);
 
-        return sendJson(res, 200, { ok: true, source: 'tidb', revision_id: revId });
+          // Also mirror to local disk
+          writeLocalJson('data/site.json', siteData);
+          return sendJson(res, 200, { ok: true, source: 'tidb', revision_id: revId });
+        } catch (dbErr: any) {
+          console.warn('[TiDB publish fallback to local]', dbErr.message);
+          ensureTiDBTables().catch(() => {});
+        }
       }
 
       // Local fallback
@@ -333,12 +340,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const jsonStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
 
       if (useTiDB) {
-        await executeTiDB(`
-          INSERT INTO aether_addons (id, data, updated_at) 
-          VALUES ('default', ?, NOW(6))
-          ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW(6)
-        `, [jsonStr]);
-        return sendJson(res, 200, { success: true, message: 'Add-ons saved in TiDB', source: 'tidb' });
+        try {
+          await executeTiDB(`
+            INSERT INTO aether_addons (id, data, updated_at) 
+            VALUES ('default', ?, NOW(6))
+            ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW(6)
+          `, [jsonStr]);
+          writeLocalJson('data/addons.json', payload);
+          return sendJson(res, 200, { success: true, message: 'Add-ons saved in TiDB', source: 'tidb' });
+        } catch (dbErr: any) {
+          console.warn('[TiDB save_addons fallback to local]', dbErr.message);
+          ensureTiDBTables().catch(() => {});
+        }
       }
 
       writeLocalJson('data/addons.json', payload);

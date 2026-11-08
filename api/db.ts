@@ -7,17 +7,45 @@ type TiDBConnection = ReturnType<typeof connect>;
 let client: TiDBConnection | null = null;
 let tablesInitialized = false;
 
+/**
+ * Normalizes DATABASE_URL to guarantee it connects to a writable database
+ * (defaults to 'test' if database path is omitted or points to 'sys')
+ */
+export function normalizeDatabaseUrl(rawUrl: string): string {
+  if (!rawUrl) return rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    const dbName = (u.pathname || '').replace(/^\//, '').trim();
+    if (
+      !dbName ||
+      dbName.toLowerCase() === 'sys' ||
+      dbName.toLowerCase() === 'information_schema' ||
+      dbName.toLowerCase() === 'mysql' ||
+      dbName.toLowerCase() === 'performance_schema'
+    ) {
+      const targetDb = process.env.TIDB_DATABASE || 'test';
+      u.pathname = '/' + targetDb;
+      return u.toString();
+    }
+    return rawUrl;
+  } catch {
+    return rawUrl;
+  }
+}
+
 export function isTiDBConfigured(): boolean {
   return !!(process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL);
 }
 
 export function getTiDBClient(): TiDBConnection | null {
-  const dbUrl = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
-  if (!dbUrl) return null;
+  const rawUrl = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
+  if (!rawUrl) return null;
 
   if (!client) {
     try {
-      client = connect({ url: dbUrl });
+      const fixedUrl = normalizeDatabaseUrl(rawUrl);
+      client = connect({ url: fixedUrl });
+      console.log('[TiDB] Initialized connection to:', fixedUrl.replace(/:[^:@]+@/, ':****@'));
     } catch (err) {
       console.error('Failed to initialize TiDB Serverless client:', err);
       return null;
@@ -47,6 +75,14 @@ export async function ensureTiDBTables(): Promise<boolean> {
   if (!db) return false;
 
   try {
+    const targetDb = process.env.TIDB_DATABASE || 'test';
+    try {
+      await db.execute(`CREATE DATABASE IF NOT EXISTS \`${targetDb}\`;`);
+      await db.execute(`USE \`${targetDb}\`;`);
+    } catch (e: any) {
+      console.warn('[TiDB] Pre-table DB use/create notice:', e.message);
+    }
+
     await db.execute(`
       CREATE TABLE IF NOT EXISTS aether_sites (
         id VARCHAR(64) PRIMARY KEY,
@@ -129,7 +165,7 @@ export async function ensureTiDBTables(): Promise<boolean> {
     `);
 
     tablesInitialized = true;
-    console.log('[TiDB] Tables verified and ready.');
+    console.log('[TiDB] Tables verified and ready in database:', targetDb);
     return true;
   } catch (err) {
     console.error('[TiDB] Error initializing tables:', err);
@@ -138,7 +174,7 @@ export async function ensureTiDBTables(): Promise<boolean> {
 }
 
 /**
- * Local filesystem fallback helper (used when DATABASE_URL is not set)
+ * Local filesystem fallback helper (used when DATABASE_URL is not set or fails)
  */
 export function readLocalJson<T = any>(relPath: string, defaultValue: T): T {
   try {

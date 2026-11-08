@@ -2,12 +2,29 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+function normalizeDbUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  try {
+    const u = new URL(rawUrl);
+    const dbName = (u.pathname || '').replace(/^\//, '').trim();
+    if (!dbName || dbName.toLowerCase() === 'sys' || dbName.toLowerCase() === 'information_schema' || dbName.toLowerCase() === 'mysql') {
+      const targetDb = process.env.TIDB_DATABASE || 'test';
+      u.pathname = '/' + targetDb;
+      return u.toString();
+    }
+    return rawUrl;
+  } catch {
+    return rawUrl;
+  }
+}
+
 let tidbClient = null;
 if (process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL) {
   try {
     const { connect } = require('@tidbcloud/serverless');
-    tidbClient = connect({ url: process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL });
-    console.log('[TiDB] Connected to TiDB Cloud Serverless');
+    const dbUrl = normalizeDbUrl(process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL);
+    tidbClient = connect({ url: dbUrl });
+    console.log('[TiDB] Connected to TiDB Cloud Serverless:', dbUrl.replace(/:[^:@]+@/, ':****@'));
   } catch (err) {
     console.warn('[TiDB] Failed to initialize connection:', err.message);
   }
