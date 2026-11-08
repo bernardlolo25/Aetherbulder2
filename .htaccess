@@ -1,0 +1,98 @@
+# ============================================================
+#  AETHERBUILDER — Apache .htaccess
+#  Optimized for InfinityFree, AwardSpace & standard cPanel
+# ============================================================
+
+# ── HTTPS Redirect ─────────────────────────────────────────────
+# Force all traffic to HTTPS (InfinityFree provides free SSL)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# ── Directory Index ────────────────────────────────────────────
+DirectoryIndex index.php index.html
+
+# ── Pass Custom Headers to FastCGI/PHP ──────────────────────────
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+    SetEnvIf X-Admin-Token "(.*)" HTTP_X_ADMIN_TOKEN=$1
+    SetEnvIf X-Admin-Password "(.*)" HTTP_X_ADMIN_PASSWORD=$1
+</IfModule>
+
+# ── Correct MIME Types ─────────────────────────────────────────
+# Ensures ES Modules, CSS, fonts and icons load properly
+<IfModule mod_mime.c>
+    AddType application/javascript          .js .mjs
+    AddType text/css                        .css
+    AddType application/json                .json
+    AddType image/svg+xml                   .svg
+    AddType font/woff                       .woff
+    AddType font/woff2                      .woff2
+    AddType font/ttf                        .ttf
+    AddType image/x-icon                   .ico
+    AddType image/png                       .png
+    AddType image/webp                      .webp
+    AddType video/mp4                       .mp4
+    AddType video/webm                      .webm
+</IfModule>
+
+# ── Cache & Security Headers ───────────────────────────────────
+<IfModule mod_headers.c>
+    # 1. Transport Security (HSTS - 1 Year with Subdomains & Preload)
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # 2. Clickjacking Defense (Allow same origin framing for builder canvas & preview)
+    Header always set X-Frame-Options "SAMEORIGIN"
+
+    # 3. MIME Sniffing Defense
+    Header always set X-Content-Type-Options "nosniff"
+
+    # 4. Referrer Privacy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # 5. Restrict Unused Hardware APIs
+    Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=()"
+
+    # 6. Content Security Policy (defense-in-depth against XSS; allows builder CDNs, fonts, media)
+    Header always set Content-Security-Policy "default-src 'self' 'unsafe-inline' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob: data:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' data: blob: https:; media-src 'self' https: data: blob:; connect-src 'self' https: wss: blob:; frame-src 'self' https:; frame-ancestors 'self';"
+
+    # HTML and PHP dynamic entrypoints
+    <FilesMatch "\.(html|htm|php)$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
+    # Prevent stale builder JavaScript and site data caching
+    <FilesMatch "\.(js|mjs|json)$">
+        Header set Cache-Control "no-cache, must-revalidate"
+        Header set Pragma "no-cache"
+    </FilesMatch>
+    # Static assets, fonts, icons, media
+    <FilesMatch "\.(css|woff|woff2|ttf|png|jpg|jpeg|gif|webp|svg|ico|mp4|webm)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
+
+# ── Protect Private Submissions ────────────────────────────────
+<FilesMatch "^(submissions\.json|.*\.log)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Block direct access to sensitive data files
+    RewriteRule ^data/(submissions\.json|revisions/|config\.json|ratelimit\.json) - [F,L]
+</IfModule>
+
+# ── Gzip Compression ──────────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json text/plain
+</IfModule>

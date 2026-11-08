@@ -1,0 +1,18 @@
+[
+  {
+    "id": "sub_1794106544_n96y",
+    "submitted_at": "2026-11-08T02:55:44.697Z",
+    "is_read": false,
+    "type": "contact",
+    "name": "Alex Rivers",
+    "email": "alex@example.com",
+    "phone": "",
+    "page": "home",
+    "message": "Hello from AetherBuilder on Vercel",
+    "extra": {
+      "name": "Alex Rivers",
+      "email": "alex@example.com",
+      "message": "Hello from AetherBuilder on Vercel"
+    }
+  }
+]

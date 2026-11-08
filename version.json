@@ -1,0 +1,8 @@
+{
+  "version": "2.9.13",
+  "release_date": "2026-11-06",
+  "changelog": "v2.9.13: Culinary Grid add-on v1.2.0 upgrade with Cake Layer / Variation selector, Category Filter tabs ([All], [Cakes], [Utensils]), Retail Stock tracking, integrated Shopping Cart drawer, and Event Booking checkout modal with instant WhatsApp / Messenger / Google Web App sync and dynamic CORS API support.",
+  "download_url": "https://raw.githubusercontent.com/bernardlolo25/aetherbuilder-releases/main/aetherbuilder-update.zip",
+  "min_php": "7.4",
+  "requires": "2.9.13"
+}

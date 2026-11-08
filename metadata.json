@@ -1,0 +1,6 @@
+{
+  "name": "TiDB + Vercel Migration Hub",
+  "description": "Architectural guide, schema converter, and migration workbench for deploying applications to Vercel with TiDB Serverless.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
