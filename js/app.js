@@ -163,17 +163,124 @@ class AetherApp {
     this.viewMode = this.detectViewMode();
     this.canvas = null;
     this.inspector = null;
+    this._shortcutsBound = false;
+
+    // Expose app instance globally for console access or script triggers
+    window.aetherApp = this;
+    window.openAdmin = () => this.switchToAdmin();
+    window.openPublic = () => this.switchToPublic();
+
+    // Bind cross-platform admin shortcuts (Ctrl+Alt+A, Cmd+Option+A, Ctrl+Shift+A)
+    this.bindGlobalAdminShortcuts();
   }
 
   detectViewMode() {
     const params = new URLSearchParams(window.location.search);
-    const view = params.get('view');
-    // Admin is only accessible via ?view=admin (triggered by Ctrl+Alt+A shortcut)
-    if (view === 'admin' || window.location.pathname.endsWith('admin.html')) {
+    const view = (params.get('view') || params.get('mode') || '').toLowerCase();
+    const pathname = window.location.pathname.toLowerCase();
+    // Admin is accessible via ?view=admin, ?mode=admin, ?admin, /admin, or /admin.html
+    if (
+      view === 'admin' ||
+      params.has('admin') ||
+      pathname.endsWith('/admin') ||
+      pathname.endsWith('admin.html')
+    ) {
       return 'admin';
     }
     // Default to public view for all visitors
     return 'public';
+  }
+
+  switchToAdmin() {
+    console.log('🔓 [AetherBuilder] Switching to Admin Studio view...');
+    this.viewMode = 'admin';
+
+    // Dismiss floating public admin trigger if present
+    const floatBtn = document.getElementById('aether-admin-access-btn');
+    if (floatBtn) floatBtn.remove();
+    const btt = document.getElementById('aether-back-to-top');
+    if (btt) btt.remove();
+
+    // Update URL query string without a destructive page reload
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'admin');
+      window.history.pushState({ view: 'admin' }, '', url.pathname + url.search);
+    } catch (e) {}
+
+    this.initAdminView();
+  }
+
+  switchToPublic() {
+    console.log('🌐 [AetherBuilder] Switching to Public Site view...');
+    this.viewMode = 'public';
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('view');
+      url.searchParams.set('view', 'public');
+      window.history.pushState({ view: 'public' }, '', url.pathname + url.search);
+    } catch (e) {}
+
+    this.initPublicView();
+  }
+
+  bindGlobalAdminShortcuts() {
+    if (this._shortcutsBound) return;
+    this._shortcutsBound = true;
+
+    const handleKey = (e) => {
+      // Key 'a' check:
+      // Note: On macOS, Option+A produces character 'å' or 'Å'.
+      // e.code 'KeyA' or keyCode 65 works across all OS/layouts.
+      const keyLower = (e.key || '').toLowerCase();
+      const isKeyA = e.code === 'KeyA' || e.keyCode === 65 || keyLower === 'a' || e.key === 'å' || e.key === 'Å';
+
+      const hasCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const hasAlt = e.altKey;
+      const hasShift = e.shiftKey;
+
+      // Match:
+      // 1. Ctrl + Alt + A (Standard Windows / Linux)
+      // 2. Cmd + Option + A or Ctrl + Option + A (macOS)
+      // 3. Ctrl + Shift + A or Cmd + Shift + A (Universal fail-safe fallback)
+      if (isKeyA && hasCtrlOrMeta && (hasAlt || hasShift)) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🔑 [AetherBuilder] Admin shortcut triggered:', {
+          key: e.key,
+          code: e.code,
+          ctrl: e.ctrlKey,
+          meta: e.metaKey,
+          alt: e.altKey,
+          shift: e.shiftKey
+        });
+
+        if (this.viewMode === 'admin') {
+          console.log('Already in Admin Studio view.');
+          if (this.canvas && typeof this.canvas.showToast === 'function') {
+            this.canvas.showToast('Already in Admin Studio', 'info');
+          }
+        } else {
+          this.switchToAdmin();
+        }
+      }
+    };
+
+    // Listen on both window and document with capture: true so child elements cannot block it
+    window.addEventListener('keydown', handleKey, { capture: true });
+    document.addEventListener('keydown', handleKey, { capture: true });
+
+    // Handle browser back / forward navigation seamlessly
+    window.addEventListener('popstate', () => {
+      const mode = this.detectViewMode();
+      if (mode !== this.viewMode) {
+        this.viewMode = mode;
+        if (mode === 'admin') this.initAdminView();
+        else this.initPublicView();
+      }
+    });
+
+    console.log('💡 [AetherBuilder] Admin shortcut registered: Ctrl+Alt+A / Cmd+Option+A / Ctrl+Shift+A. (Console: openAdmin())');
   }
 
   async start() {
@@ -541,24 +648,11 @@ class AetherApp {
     }
 
     let container = document.getElementById('public-site-container');
-    if (!container) {
+    if (!container || document.querySelector('.builder-shell')) {
       document.body.innerHTML = `
         <div id="public-site-container" style="width: 100%; min-height: 100vh; position: relative;"></div>
       `;
       container = document.getElementById('public-site-container');
-
-      // Hidden admin access: Ctrl + Alt + A
-      document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.altKey && (e.key === 'a' || e.key === 'A')) {
-          e.preventDefault();
-          window.location.href = '?view=admin';
-        }
-      });
-
-      // Handle browser back/forward buttons
-      window.addEventListener('popstate', () => {
-        this.initPublicView();
-      });
 
       // Handle internal link navigation seamlessly
       document.addEventListener('click', (e) => {
@@ -598,18 +692,91 @@ class AetherApp {
       initBackToTopButton();
     }
 
+    // Mount discreet floating admin access button in public view
+    this.mountPublicAdminTrigger();
+
     // Dismiss initial loading overlay
     removeInitialLoader();
   }
 
+  // --------------------------------------------------------------------------
+  // FLOATING ADMIN TRIGGER BUTTON (DISCREET & ALWAYS ACCESSIBLE)
+  // --------------------------------------------------------------------------
+  mountPublicAdminTrigger() {
+    if (document.getElementById('aether-admin-access-btn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'aether-admin-access-btn';
+    btn.type = 'button';
+    btn.title = 'Access AetherBuilder Admin Studio (Ctrl + Alt + A)';
+    btn.setAttribute('aria-label', 'Open Admin Studio');
+    btn.innerHTML = `
+      <span style="font-size: 15px; line-height: 1;">🔐</span>
+      <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.02em;">Admin</span>
+      <kbd style="font-size: 10px; background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 4px; font-family: monospace; border: 1px solid rgba(255,255,255,0.15); opacity: 0.85;">Ctrl+Alt+A</kbd>
+    `;
+    btn.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      left: 24px;
+      height: 38px;
+      padding: 0 14px 0 11px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(99, 102, 241, 0.45);
+      border-radius: 20px;
+      color: #e2e8f0;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(99, 102, 241, 0.25);
+      z-index: 998;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      user-select: none;
+    `;
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = 'rgba(99, 102, 241, 0.95)';
+      btn.style.borderColor = 'rgba(165, 180, 252, 0.8)';
+      btn.style.color = '#ffffff';
+      btn.style.transform = 'translateY(-2px) scale(1.04)';
+      btn.style.boxShadow = '0 10px 25px rgba(99, 102, 241, 0.45)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'rgba(15, 23, 42, 0.88)';
+      btn.style.borderColor = 'rgba(99, 102, 241, 0.45)';
+      btn.style.color = '#e2e8f0';
+      btn.style.transform = 'translateY(0) scale(1)';
+      btn.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.5), 0 0 12px rgba(99, 102, 241, 0.25)';
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.switchToAdmin();
+    });
+    document.body.appendChild(btn);
+  }
 
   // --------------------------------------------------------------------------
   // ADMIN STUDIO VIEW MODE (ARGON2 PROTECTED)
   // --------------------------------------------------------------------------
   async initAdminView() {
     removeInitialLoader();
-    applyTheme(state.pageSettings.themePreset || 'dark-neon', state.pageSettings.fontFamily, state.pageSettings.themeCustom);
-    if (state.pageSettings.pageTitle) {
+    // Dismiss public-only floating elements
+    const floatBtn = document.getElementById('aether-admin-access-btn');
+    if (floatBtn) floatBtn.remove();
+    const btt = document.getElementById('aether-back-to-top');
+    if (btt) btt.remove();
+    const cb = document.getElementById('aether-chatbot-container');
+    if (cb) cb.remove();
+
+    // Ensure state pages exist so canvas has content to edit
+    if (!state.pages || state.pages.length === 0 || !state.currentPage) {
+      try { await state.init(); } catch (e) {}
+    }
+
+    applyTheme(state.pageSettings?.themePreset || 'dark-neon', state.pageSettings?.fontFamily, state.pageSettings?.themeCustom);
+    if (state.pageSettings?.pageTitle) {
       document.title = `${state.pageSettings.pageTitle} (Admin Studio)`;
     }
 
@@ -625,7 +792,10 @@ class AetherApp {
 
   async renderAdminStudio() {
     removeInitialLoader();
-    if (auth && typeof auth.ensureSessionToken === 'function') { await auth.ensureSessionToken(); }
+    // Non-blocking background token verification so UI renders immediately
+    if (auth && typeof auth.ensureSessionToken === 'function') {
+      auth.ensureSessionToken().catch(() => {});
+    }
     document.body.innerHTML = `
       <div class="builder-shell">
         <!-- 1. Top Navigation Bar -->
@@ -699,10 +869,10 @@ class AetherApp {
               <span>🖼️</span>
             </button>
 
-            <!-- Argon2 Security Badge -->
-            <div class="security-badge" id="btn-security" title="Argon2id WebAssembly Active. Click to manage password.">
+            <!-- Admin Security Badge -->
+            <div class="security-badge" id="btn-security" title="Admin Security. Click to manage password.">
               <span>🔐</span>
-              <span>Argon2id</span>
+              <span>Security</span>
             </div>
 
             <!-- Public Site Link -->
@@ -1384,33 +1554,44 @@ class AetherApp {
       </div>
     `;
 
-    this.bindTopbarActions();
-    this.renderWidgetTray();
-    this.initSidebarTabs();
-    this.initSidebarResizer();
-    this.initMobileSidebar();
+    try { this.bindTopbarActions(); } catch (e) { console.warn('bindTopbarActions error:', e); }
+    try { this.renderWidgetTray(); } catch (e) { console.warn('renderWidgetTray error:', e); }
+    try { this.initSidebarTabs(); } catch (e) { console.warn('initSidebarTabs error:', e); }
+    try { this.initSidebarResizer(); } catch (e) { console.warn('initSidebarResizer error:', e); }
+    try { this.initMobileSidebar(); } catch (e) { console.warn('initMobileSidebar error:', e); }
 
     // Initialize Canvas & Inspector
     const canvasContainer = document.getElementById('builder-canvas-container');
     const inspectorContainer = document.getElementById('tab-inspector-panel');
 
-    this.canvas = new BuilderCanvas(canvasContainer, false);
-    this.inspector = new InspectorPanel(inspectorContainer);
+    try {
+      this.canvas = new BuilderCanvas(canvasContainer, false);
+    } catch (e) {
+      console.error('BuilderCanvas init error:', e);
+    }
+
+    try {
+      this.inspector = new InspectorPanel(inspectorContainer);
+    } catch (e) {
+      console.error('InspectorPanel init error:', e);
+    }
 
     // Auto-switch to inspector tab when an element is clicked
-    state.subscribe((_, action) => {
-      if (action === 'selection' && state.activeElementId) {
-        this.switchSidebarTab('inspector');
-      }
-    });
+    try {
+      state.subscribe((_, action) => {
+        if (action === 'selection' && state.activeElementId) {
+          this.switchSidebarTab('inspector');
+        }
+      });
+    } catch (e) {}
 
-    this.bindKeyboardShortcuts();
-    this.initPageSettings();
-    this.initSiteSettings();
-    this.initMediaLibrary();
-    this.initPagesPanel();
-    this.initNotificationsHub();
-    this.initAddonsHandlers();
+    try { this.bindKeyboardShortcuts(); } catch (e) { console.warn('bindKeyboardShortcuts error:', e); }
+    try { this.initPageSettings(); } catch (e) { console.warn('initPageSettings error:', e); }
+    try { this.initSiteSettings(); } catch (e) { console.warn('initSiteSettings error:', e); }
+    try { this.initMediaLibrary(); } catch (e) { console.warn('initMediaLibrary error:', e); }
+    try { this.initPagesPanel(); } catch (e) { console.warn('initPagesPanel error:', e); }
+    try { this.initNotificationsHub(); } catch (e) { console.warn('initNotificationsHub error:', e); }
+    try { this.initAddonsHandlers(); } catch (e) { console.warn('initAddonsHandlers error:', e); }
   }
 
   // --------------------------------------------------------------------------
@@ -2521,23 +2702,23 @@ class AetherApp {
       this.activeDevSubTab = 'feed';
     }
 
-    // ── 1. If Locked: Render Argon2 Security Gate ──
+    // ── 1. If Locked: Render Security Gate ──
     if (!devAuth.isAuthenticated()) {
       panel.innerHTML = `
         <div style="padding: 18px 14px; display: flex; flex-direction: column; gap: 16px;">
           <div style="text-align: center; padding: 20px 14px; background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.25); border-radius: 12px;">
             <div style="font-size: 2.4rem; margin-bottom: 8px;">🔒</div>
             <div style="font-weight: 800; font-size: 1.05rem; color: #ffffff; letter-spacing: -0.02em;">Developer Hub Gate</div>
-            <div style="font-size: 0.74rem; color: #818cf8; font-weight: 600; margin-top: 2px;">WebAssembly Argon2id Security</div>
+            <div style="font-size: 0.74rem; color: #818cf8; font-weight: 600; margin-top: 2px;">Restricted Access</div>
             <p style="font-size: 0.76rem; color: var(--text-dim); margin-top: 10px; line-height: 1.45;">
-              This tab is exclusively for the developer to manage remote marketplace feeds, sell widgets, and curate free templates. Standard users cannot access this area.
+              This area is reserved for managing marketplace packages, custom widgets, and templates.
             </p>
           </div>
 
           <form id="form-dev-unlock" style="display: flex; flex-direction: column; gap: 10px;">
             <div>
               <label style="display: block; font-size: 0.75rem; font-weight: 700; color: #e2e8f0; margin-bottom: 6px;">
-                Master Developer Password
+                Developer Password
               </label>
               <input type="password" id="dev-unlock-password" placeholder="Enter developer password..." autocomplete="current-password"
                 style="width: 100%; font-size: 0.82rem; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-subtle); background: var(--bg-deep); color: #ffffff;" />
@@ -2550,19 +2731,6 @@ class AetherApp {
 
             <div id="dev-unlock-feedback" style="display: none; font-size: 0.74rem; padding: 8px 10px; border-radius: 6px; line-height: 1.4;"></div>
           </form>
-
-          <div style="background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; font-size: 0.72rem; color: var(--text-dim); line-height: 1.6;">
-            <div style="font-weight: 700; color: #cbd5e1; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
-              <span>🛡️</span> Cryptographic Security Spec
-            </div>
-            <div>• Algorithm: <strong>Argon2id (PHC encoded)</strong></div>
-            <div>• WebAssembly Acceleration: <strong>hash-wasm v4</strong></div>
-            <div>• Memory Cost: <strong>4096 KB (4MB RAM)</strong></div>
-            <div>• Salt: <strong>CSPRNG 16-byte random</strong></div>
-            <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(255,255,255,0.08); color: #94a3b8;">
-              🔑 Initial default developer password: <code style="color: #a5b4fc; background: rgba(99,102,241,0.15); padding: 1px 4px; border-radius: 4px;">dev2026!</code>
-            </div>
-          </div>
         </div>
       `;
 
@@ -2580,12 +2748,12 @@ class AetherApp {
         }
 
         submitBtn.disabled = true;
-        submitBtn.innerHTML = `<span>⏳</span> Verifying Argon2id hash...`;
+        submitBtn.innerHTML = `<span>⏳</span> Verifying credentials...`;
         feedback.style.display = 'block';
         feedback.style.background = 'rgba(99,102,241,0.15)';
         feedback.style.border = '1px solid rgba(99,102,241,0.3)';
         feedback.style.color = '#c7d2fe';
-        feedback.textContent = 'Computing WebAssembly Argon2id verification across 4MB memory cost...';
+        feedback.textContent = 'Verifying security credentials...';
 
         try {
           const res = await devAuth.unlock(pwd);
@@ -5244,40 +5412,30 @@ ${addonManager.getAllActiveJs()}
     modal.id = 'security-modal';
     modal.className = 'modal-overlay animate-fade-in';
     modal.innerHTML = `
-      <div class="modal-box animate-scale-in">
+      <div class="modal-box animate-scale-in" style="max-width: 440px;">
         <div class="modal-header">
           <div class="modal-title">
-            <span>🔐</span> Argon2id Security Center
+            <span>🔐</span> Security &amp; Password
           </div>
           <button class="tool-icon-btn" id="close-sec-modal">✕</button>
         </div>
         <div class="modal-body">
-          <div class="argon2-verify-box">
-            <div style="font-weight: 700; color: #fff;">Cryptographic Spec:</div>
-            <div style="font-size: 0.82rem; line-height: 1.5;">
-              • Algorithm: <strong>Argon2id (PHC format)</strong><br>
-              • WebAssembly Acceleration: <strong>hash-wasm v4</strong><br>
-              • Memory Cost: <strong>4096 KB (4 MB)</strong><br>
-              • Iterations: <strong>3 passes</strong><br>
-              • Salt: <strong>16-byte cryptographically secure random</strong>
-            </div>
-            <div style="font-weight: 700; margin-top: 6px; color: #fff;">Stored Argon2 Hash:</div>
-            <div class="argon2-hash-preview">${storedHash}</div>
-          </div>
+          <p style="font-size: 0.88rem; color: var(--text-dim); margin: 0 0 16px; line-height: 1.5;">
+            Update your master administrator password for this workspace.
+          </p>
 
-          <form id="change-pass-form" style="display: flex; flex-direction: column; gap: 12px; margin-top: 8px;">
-            <div style="font-weight: 700; font-size: 0.95rem;">Update Master Password</div>
+          <form id="change-pass-form" style="display: flex; flex-direction: column; gap: 12px;">
             <div class="prop-group">
               <label class="prop-label">Current Password</label>
               <input type="password" id="cur-pass-input" placeholder="Current password..." required />
             </div>
             <div class="prop-group">
-              <label class="prop-label">New Master Password</label>
+              <label class="prop-label">New Password</label>
               <input type="password" id="new-pass-input" placeholder="New password (min 4 chars)..." required />
             </div>
             <div id="change-pass-msg" style="font-size: 0.85rem; font-weight: 600; min-height: 18px;"></div>
             <button type="submit" class="wb-btn wb-btn-primary" style="width: 100%;">
-              <span>Re-hash & Save with Argon2</span>
+              <span>Save New Password</span>
             </button>
           </form>
         </div>
@@ -5296,7 +5454,7 @@ ${addonManager.getAllActiveJs()}
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      msg.textContent = 'Computing new Argon2id hash...';
+      msg.textContent = 'Updating password...';
       msg.style.color = 'var(--warning)';
 
       const curPass = modal.querySelector('#cur-pass-input').value;
@@ -5304,9 +5462,9 @@ ${addonManager.getAllActiveJs()}
 
       const res = await auth.updatePassword(curPass, newPass);
       if (res.success) {
-        msg.textContent = '✓ Password successfully updated and hashed!';
+        msg.textContent = '✓ Password successfully updated!';
         msg.style.color = 'var(--success)';
-        setTimeout(() => modal.remove(), 1500);
+        setTimeout(() => modal.remove(), 1200);
       } else {
         msg.textContent = res.error || 'Failed to update password.';
         msg.style.color = 'var(--danger)';
@@ -6724,6 +6882,7 @@ ${addonManager.getAllActiveJs()}
 function bootstrapAetherApp() {
   try {
     const app = new AetherApp();
+    window.aetherApp = app;
     app.start().catch(err => {
       console.error('Fatal AetherApp start error:', err);
       removeInitialLoader();

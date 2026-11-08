@@ -3,14 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AetherBuilder - Live Public Website</title>
-  <meta name="description" content="Published live public view powered by AetherBuilder visual web builder engine.">
-  <link rel="icon" type="image/png" href="/favicon.png">
-  <link rel="shortcut icon" href="/favicon.ico">
-  <meta http-equiv="refresh" content="0; url=/?view=public">
-  <script>window.location.replace('/?view=public');</script>
+  <title>AetherBuilder - Public Site</title>
+  <meta http-equiv="refresh" content="0;url=/?view=public">
+  <script>
+    window.location.replace('/?view=public' + window.location.hash);
+  </script>
+  <style>
+    body {
+      background: #090d16;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(99,102,241,0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    a { color: #818cf8; text-decoration: none; font-size: 0.9rem; }
+  </style>
 </head>
-<body style="background: #090d16; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif;">
-  <p>Loading live public website... If not redirected, <a href="/?view=public" style="color: #818cf8;">click here</a>.</p>
+<body>
+  <div class="spinner"></div>
+  <p>Loading Live Public Site...</p>
+  <p><a href="/?view=public">Click here if you are not redirected automatically</a></p>
 </body>
 </html>

@@ -349,6 +349,12 @@ class BuilderState {
         }
       }
 
+      // If loaded pages have 0 total sections across all pages, populate with default SaaS template
+      const totalSecs = this.pages.reduce((acc, p) => acc + (Array.isArray(p.sections) ? p.sections.length : 0), 0);
+      if (totalSecs === 0) {
+        this.loadTemplate('saas', false);
+      }
+
       this.syncLoaderCache();
       this.applyActiveTheme();
       return;

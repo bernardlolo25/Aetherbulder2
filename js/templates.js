@@ -43,7 +43,7 @@ export const TEMPLATES = {
           badgeText: '🚀 Next-Gen Visual Web Engine',
           title: 'Craft Extraordinary Digital Experiences with Ease',
           highlightWord: 'Extraordinary',
-          description: 'The ultra-responsive, Elementor-grade web builder with cryptographic Argon2 protection, live reactive components, and instant publishing.',
+          description: 'The ultra-responsive, Elementor-grade web builder with high-security protection, live reactive components, and instant publishing.',
           primaryBtnText: 'Start Building Free',
           primaryBtnLink: '#features',
           secondaryBtnText: 'Explore Showcase',
@@ -96,8 +96,8 @@ export const TEMPLATES = {
             },
             {
               icon: '🔐',
-              title: 'Argon2id Wasm Defense',
-              desc: 'Cryptographically shielded admin portal backed by memory-hard WebAssembly Argon2 password verification.'
+              title: 'Hardened Studio Defense',
+              desc: 'Shielded administrator portal with end-to-end credential authentication.'
             },
             {
               icon: '📱',
@@ -119,7 +119,7 @@ export const TEMPLATES = {
           alignment: 'center',
           icon: '⚡',
           iconPosition: 'right',
-          subtext: 'Argon2id Encrypted • Zero Software Installation Needed'
+          subtext: 'End-to-End Encrypted • Zero Software Installation Needed'
         }
       },
       {
@@ -142,10 +142,10 @@ export const TEMPLATES = {
             },
             {
               bgImage: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
-              title: 'Cryptographic Argon2 Suite',
-              desc: 'State-of-the-art password verification preventing credential stuffing and brute-force attacks.',
+              title: 'Hardened Security Suite',
+              desc: 'State-of-the-art password verification preventing unauthorized access and brute-force attacks.',
               showButton: true,
-              btnText: 'Argon2 Security Audit',
+              btnText: 'Security Audit',
               btnLink: '#stats',
               btnStyle: 'glow',
               btnTargetBlank: false
@@ -216,7 +216,7 @@ export const TEMPLATES = {
               url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80',
               title: 'Cryptographic Security',
               category: 'Technology',
-              tag: 'Argon2'
+              tag: 'Security'
             },
             {
               url: 'https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=800&q=80',
@@ -244,7 +244,7 @@ export const TEMPLATES = {
               price: '$0',
               period: '/ forever',
               featured: false,
-              features: ['1 Live Published Project', 'Standard Argon2 Hashing', 'Core Widgets Suite', 'Community Support'],
+              features: ['1 Live Published Project', 'Standard Security Suite', 'Core Widgets Suite', 'Community Support'],
               btnText: 'Start Free'
             },
             {
@@ -253,7 +253,7 @@ export const TEMPLATES = {
               period: '/ month',
               featured: true,
               badge: 'Popular',
-              features: ['Unlimited Projects', 'Argon2id Wasm Cryptography', 'Full Lightbox & Carousel', '1-Click JSON/HTML Export', 'Global Edge Delivery'],
+              features: ['Unlimited Projects', 'Hardened Multi-Layer Security', 'Full Lightbox & Carousel', '1-Click JSON/HTML Export', 'Global Edge Delivery'],
               btnText: 'Claim 14-Day Trial'
             },
             {
@@ -261,7 +261,7 @@ export const TEMPLATES = {
               price: '$99',
               period: '/ month',
               featured: false,
-              features: ['Custom Argon2 Parameters', 'Multi-tenant Permissions', 'Dedicated Uptime SLA', 'White-Label Branding'],
+              features: ['Advanced Security Controls', 'Multi-tenant Permissions', 'Dedicated Uptime SLA', 'White-Label Branding'],
               btnText: 'Contact Enterprise'
             }
           ]
@@ -273,8 +273,8 @@ export const TEMPLATES = {
         props: {
           items: [
             {
-              question: 'How does the Argon2 password hashing protect my builder?',
-              answer: 'Argon2 is the winner of the Password Hashing Competition (PHC). It uses memory-hard functions that resist GPU and ASIC cracking attacks. When you log in, hash-wasm runs the cryptographic verification via WebAssembly right inside your browser!'
+              question: 'How does workspace protection secure my builder?',
+              answer: 'AetherBuilder employs high-grade memory-hard credential security that resists GPU and ASIC cracking attacks. When you sign in, cryptographic verification runs right inside your browser to keep your workspace protected.'
             },
             {
               question: 'Can I export the website to host on any server?',
@@ -302,7 +302,9 @@ export const TEMPLATES = {
         props: {
           brandText: 'AetherStudio',
           brandDesc: 'The next-generation visual web engine empowering designers and developers to build at lightspeed.',
-          copyright: '© 2026 AetherBuilder Studio Inc. Protected by Argon2id Cryptography.'
+          copyright: '© 2026 AetherBuilder Studio Inc. All rights reserved.',
+          showAdminLogin: true,
+          adminLoginText: 'Admin Login'
         }
       }
     ]
@@ -390,7 +392,9 @@ export const TEMPLATES = {
         props: {
           brandText: 'Studio Lumen',
           brandDesc: 'High-concept creative studio combining typography, geometry, and code.',
-          copyright: '© 2026 Studio Lumen. Protected by Argon2id.'
+          copyright: '© 2026 Studio Lumen. All rights reserved.',
+          showAdminLogin: true,
+          adminLoginText: 'Admin Login'
         }
       }
     ]

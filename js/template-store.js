@@ -84,10 +84,10 @@ export class TemplateStore {
       },
       {
         id: 'admin_mcle_portal',
-        name: 'Faculty Access & Argon2 Login Portal',
+        name: 'Faculty & Administrative Access Portal',
         category: 'Security & Portal',
         thumbnail: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=800&q=80',
-        description: 'Secure portal landing page integrated with WebAssembly Argon2id cryptographic password authentication.',
+        description: 'Secure portal landing page integrated with encrypted administrator password authentication.',
         price: 0,
         requiredAddons: ['addon_admin_login_gate'],
         sections: []

@@ -702,7 +702,7 @@ export const WIDGET_REGISTRY = {
       badgeIconUrl: '',
       title: 'Craft Extraordinary Digital Experiences with Ease',
       highlightWord: 'Extraordinary',
-      description: 'The ultra-responsive, Elementor-grade web builder with cryptographic Argon2 protection, live reactive components, and instant publishing.',
+      description: 'The ultra-responsive, Elementor-grade web builder with high-security protection, live reactive components, and instant publishing.',
       primaryBtnText: 'Start Building Free',
       primaryBtnLink: '#features',
       secondaryBtnText: 'Explore Showcase',
@@ -977,8 +977,8 @@ export const WIDGET_REGISTRY = {
         },
         {
           bgImage: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
-          title: 'Cryptographic Argon2 Defense',
-          desc: 'Zero-knowledge memory-hard hashing safeguarding administrative panels against brute-force attacks.',
+          title: 'Hardened Studio Defense',
+          desc: 'Zero-knowledge memory-hard security safeguarding administrative panels against unauthorized access.',
           showButton: true,
           btnText: 'Security Deep Dive',
           btnLink: '#stats',
@@ -1129,7 +1129,7 @@ export const WIDGET_REGISTRY = {
       imagePosition: 'right',
       features: [
         'Zero-latency visual tree updates with state reconciliation',
-        'Built-in WebAssembly Argon2id cryptographic credential hashing',
+        'Built-in hardened cryptographic credential security',
         'Instant multi-device viewport scaling (Desktop, Tablet, Mobile)',
         'Full JSON & HTML standalone export capabilities'
       ],
@@ -1391,8 +1391,8 @@ export const WIDGET_REGISTRY = {
           iconType: 'icon',
           icon: '🔐',
           iconImageUrl: '',
-          title: 'Argon2id Wasm Defense',
-          desc: 'Armed with industrial-grade WebAssembly cryptographic Argon2 password hashing to keep the admin workspace impenetrable.'
+          title: 'Hardened Studio Defense',
+          desc: 'Armed with industrial-grade cryptographic security to keep the admin workspace protected.'
         },
         {
           iconType: 'icon',
@@ -1713,8 +1713,8 @@ export const WIDGET_REGISTRY = {
     defaultProps: {
       items: [
         {
-          question: 'How does the Argon2 password hashing protect my builder?',
-          answer: 'Argon2 is the winner of the Password Hashing Competition (PHC). It uses memory-hard functions that resist GPU and ASIC cracking attacks. When you log in, hash-wasm runs the cryptographic verification via WebAssembly right inside your browser!'
+          question: 'How does workspace protection secure my builder?',
+          answer: 'AetherBuilder employs high-grade memory-hard credential security that resists GPU and ASIC cracking attacks. When you sign in, cryptographic verification runs right inside your browser to keep your workspace protected.'
         },
         {
           question: 'Can I export the website to host on any server?',
@@ -2027,6 +2027,8 @@ export const WIDGET_REGISTRY = {
       showOnlyCopyright: false,
       copyrightAlignment: 'center',
       copyright: '© {year} AetherStudio Inc. All rights reserved.',
+      showAdminLogin: true,
+      adminLoginText: 'Admin Login',
       logoType: 'icon',
       logoImageUrl: '',
       brandIcon: '⚡',
@@ -2047,6 +2049,8 @@ export const WIDGET_REGISTRY = {
         { key: 'globalFooter', label: '🌐 Display Globally Across All Pages', type: 'toggle' },
         { key: 'fixedBottom', label: '📌 Float Fixed at Bottom of Screen', type: 'toggle' },
         { key: 'showOnlyCopyright', label: '⚡ Display Only Copyright Section (Minimal Footer)', type: 'toggle' },
+        { key: 'showAdminLogin', label: '🔐 Show Admin Login Link in Footer', type: 'toggle' },
+        { key: 'adminLoginText', label: 'Admin Login Link Label', type: 'text' },
         {
           key: 'copyrightAlignment',
           label: 'Copyright Text Alignment',
@@ -2113,6 +2117,11 @@ export const WIDGET_REGISTRY = {
         ? parseLinks(props.bottomLinks).join('')
         : '';
 
+      // Admin Login Link in Footer (toggled via props.showAdminLogin)
+      const adminLoginHtml = (props.showAdminLogin !== false)
+        ? `<a href="?view=admin" class="wb-footer-link wb-footer-admin-link" onclick="event.preventDefault(); if (window.aetherApp) { window.aetherApp.switchToAdmin(); } else { window.location.href='?view=admin'; }" style="display: inline-flex; align-items: center; gap: 5px; color: var(--primary-light, #818cf8); font-weight: 600; text-decoration: none; cursor: pointer; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); font-size: 0.78rem; transition: all 0.2s;" title="Access Admin Studio (Ctrl+Alt+A)"><span>🔐</span><span>${props.adminLoginText || 'Admin Login'}</span></a>`
+        : '';
+
       // Fixed bottom positioning (applied to both footer modes)
       const fixedStyle = props.fixedBottom
         ? 'position: fixed; bottom: 0; left: 0; right: 0; z-index: 900; width: 100%;'
@@ -2130,9 +2139,12 @@ export const WIDGET_REGISTRY = {
       if (props.showOnlyCopyright) {
         return spacerHtml + `
           <footer class="wb-footer is-minimal" style="${fixedStyle} padding: 24px 20px; border-top: 1px solid var(--border-subtle); background: rgba(9, 13, 22, 0.7); width: 100%;">
-            <div class="wb-footer-bottom" style="margin: 0 auto; border-top: none; padding-top: 0; display: flex; align-items: center; justify-content: ${bottomLinksHtml ? 'space-between' : justifyVal}; text-align: ${align}; width: 100%; max-width: 1240px; flex-wrap: wrap; gap: 12px;">
-              <div style="${bottomLinksHtml ? '' : `width: 100%; text-align: ${align};`} color: var(--text-dim); font-size: 0.88rem;">${rawCopyright}</div>
-              ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap;">${bottomLinksHtml}</div>` : ''}
+            <div class="wb-footer-bottom" style="margin: 0 auto; border-top: none; padding-top: 0; display: flex; align-items: center; justify-content: space-between; text-align: ${align}; width: 100%; max-width: 1240px; flex-wrap: wrap; gap: 12px;">
+              <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; color: var(--text-dim); font-size: 0.88rem;">
+                <span>${rawCopyright}</span>
+                ${adminLoginHtml}
+              </div>
+              ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">${bottomLinksHtml}</div>` : ''}
             </div>
           </footer>
         `;
@@ -2177,9 +2189,12 @@ export const WIDGET_REGISTRY = {
             </div>
             ${columnsHtml}
           </div>
-          <div class="wb-footer-bottom" style="display: flex; align-items: center; justify-content: ${bottomLinksHtml ? 'space-between' : justifyVal}; text-align: ${align};">
-            <div style="${bottomLinksHtml ? '' : `width: 100%; text-align: ${align};`}">${rawCopyright}</div>
-            ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap;">${bottomLinksHtml}</div>` : ''}
+          <div class="wb-footer-bottom" style="display: flex; align-items: center; justify-content: space-between; text-align: ${align}; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+              <span>${rawCopyright}</span>
+              ${adminLoginHtml}
+            </div>
+            ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">${bottomLinksHtml}</div>` : ''}
           </div>
         </footer>
       `;
