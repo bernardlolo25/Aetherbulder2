@@ -704,6 +704,10 @@ class AetherApp {
   // --------------------------------------------------------------------------
   mountPublicAdminTrigger() {
     if (document.getElementById('aether-admin-access-btn')) return;
+    const ss = state.siteSettings || {};
+    if (ss.showAdminButton === false || (ss.adminButton && ss.adminButton.enabled === false)) {
+      return;
+    }
     const btn = document.createElement('button');
     btn.id = 'aether-admin-access-btn';
     btn.type = 'button';
@@ -1475,6 +1479,20 @@ class AetherApp {
                   </div>
                   <div style="font-size: 0.72rem; color: var(--text-dim);">
                     Displays a smooth floating circular button at the bottom-right corner when visitors scroll down, allowing 1-tap return to the top.
+                  </div>
+                </div>
+
+                <!-- Floating Admin Access Button Setting -->
+                <div class="prop-group" style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-subtle);">
+                  <div style="font-weight: 700; font-size: 0.86rem; color: #f8fafc; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                    <span style="display:flex;align-items:center;gap:6px;"><span>🔐</span> Floating Admin Access Button</span>
+                    <label style="font-size:0.75rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;cursor:pointer;">
+                      <input type="checkbox" id="site-admin-btn-enable" checked style="cursor:pointer;" />
+                      <span>Enable</span>
+                    </label>
+                  </div>
+                  <div style="font-size: 0.72rem; color: var(--text-dim);">
+                    Displays a discreet floating &quot;🔐 Admin&quot; button in the bottom-left corner of the live site. Even when disabled, administrators can always access the studio by pressing <kbd style="font-family:monospace;background:rgba(255,255,255,0.12);padding:1px 4px;border-radius:3px;">Ctrl + Alt + A</kbd> or appending <code style="color:#a5b4fc;">?admin=1</code> to the URL.
                   </div>
                 </div>
               </div>
@@ -4218,6 +4236,15 @@ git push -u origin main</textarea>
       });
     }
 
+    // Floating Admin Access Button Wiring
+    const adminBtnEnableCb = document.getElementById('site-admin-btn-enable');
+    if (adminBtnEnableCb) {
+      adminBtnEnableCb.addEventListener('change', (e) => {
+        state.setSiteSetting('showAdminButton', e.target.checked);
+        this.canvas?.showToast(e.target.checked ? '🔐 Floating Admin button enabled on live site' : '🔐 Floating Admin button hidden (use Ctrl+Alt+A to access)', 'info');
+      });
+    }
+
     // Chatbot Settings Wiring
     const cbEnableCb = document.getElementById('site-chatbot-enable');
     if (cbEnableCb) {
@@ -4584,6 +4611,11 @@ git push -u origin main</textarea>
     const btt = s.backToTop || { enabled: true };
     const bttEnableEl = document.getElementById('site-backtotop-enable');
     if (bttEnableEl) bttEnableEl.checked = btt.enabled !== false;
+
+    const adminBtnEnableEl = document.getElementById('site-admin-btn-enable');
+    if (adminBtnEnableEl) {
+      adminBtnEnableEl.checked = s.showAdminButton !== false && (s.adminButton ? s.adminButton.enabled !== false : true);
+    }
 
     // Sync Global Background Image inputs
     const gBg = s.globalBg || {};
