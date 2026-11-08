@@ -2140,7 +2140,7 @@ export const WIDGET_REGISTRY = {
 
       // Admin Login Link in Footer (toggled via props.showAdminLogin)
       const adminLoginHtml = (props.showAdminLogin !== false)
-        ? `<a href="?view=admin" class="wb-footer-link wb-footer-admin-link" onclick="event.preventDefault(); if (window.aetherApp) { window.aetherApp.switchToAdmin(); } else { window.location.href='?view=admin'; }" style="display: inline-flex; align-items: center; gap: 5px; color: var(--primary-light, #818cf8); font-weight: 600; text-decoration: none; cursor: pointer; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); font-size: 0.78rem; transition: all 0.2s;" title="Access Admin Studio (Ctrl+Alt+A)"><span>🔐</span><span>${props.adminLoginText || 'Admin Login'}</span></a>`
+        ? `<a href="?view=admin" class="wb-footer-link wb-footer-admin-link" onclick="event.preventDefault(); if (window.aetherApp) { window.aetherApp.switchToAdmin(); } else { window.location.href='?view=admin'; }" style="display: inline-flex; align-items: center; gap: 5px; color: var(--primary-light, #818cf8); font-weight: 600; text-decoration: none; cursor: pointer; padding: 2px 8px; border-radius: 6px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.3); font-size: 0.78rem; transition: all 0.2s;" title="Administrative Access"><span>🔐</span><span>${props.adminLoginText || 'Admin Login'}</span></a>`
         : '';
 
       // Fixed bottom positioning (applied to both footer modes)

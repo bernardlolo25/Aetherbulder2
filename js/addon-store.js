@@ -41,7 +41,7 @@ export const STORE_CATALOG = [
       textColor: '#ffffff',
       borderRadius: 16,
       glassBlur: 16,
-      showShortcutHint: true
+      showShortcutHint: false
     },
     schema: {
       content: [
@@ -50,7 +50,7 @@ export const STORE_CATALOG = [
         { key: 'icon', label: 'Portal Icon Emoji', type: 'text' },
         { key: 'placeholder', label: 'Password Placeholder', type: 'text' },
         { key: 'buttonText', label: 'Button Text', type: 'text' },
-        { key: 'showShortcutHint', label: 'Show Shortcut Hint (Ctrl+Alt+A)', type: 'toggle' }
+        { key: 'showShortcutHint', label: 'Show Discreet Security Notice', type: 'toggle' }
       ],
       style: [
         {
@@ -104,7 +104,7 @@ export const STORE_CATALOG = [
           </button>
           <div class="wb-admin-status-msg" style="display:none;"></div>
           {{#if showShortcutHint}}
-            <div class="wb-admin-hint">Tip: Administrators can also press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>A</kbd> anytime.</div>
+            <div class="wb-admin-hint">Protected administration portal &bull; Authorized personnel only</div>
           {{/if}}
         </form>
       </div>
@@ -131,7 +131,7 @@ export const STORE_CATALOG = [
         </button>
         <div class="wb-admin-status-msg" style="display:none;"></div>
         {{#if showShortcutHint}}
-          <div class="wb-admin-hint">Tip: Administrators can also press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>A</kbd> anytime.</div>
+          <div class="wb-admin-hint">Protected administration portal &bull; Authorized personnel only</div>
         {{/if}}
       </form>
     </div>

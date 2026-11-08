@@ -705,18 +705,22 @@ class AetherApp {
   mountPublicAdminTrigger() {
     if (document.getElementById('aether-admin-access-btn')) return;
     const ss = state.siteSettings || {};
-    if (ss.showAdminButton === false || (ss.adminButton && ss.adminButton.enabled === false)) {
+    // Disabled by default: only mount if explicitly enabled in Site Settings
+    if (ss.showAdminButton !== true && (!ss.adminButton || ss.adminButton.enabled !== true)) {
+      return;
+    }
+    // Automatically suppress if an Admin Portal addon is already present on the page
+    if (document.querySelector('[data-addon-id="addon_admin_login_gate"]') || document.querySelector('.wb-admin-portal-wrapper')) {
       return;
     }
     const btn = document.createElement('button');
     btn.id = 'aether-admin-access-btn';
     btn.type = 'button';
-    btn.title = 'Access AetherBuilder Admin Studio (Ctrl + Alt + A)';
+    btn.title = 'Open Admin Studio';
     btn.setAttribute('aria-label', 'Open Admin Studio');
     btn.innerHTML = `
       <span style="font-size: 15px; line-height: 1;">🔐</span>
       <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.02em;">Admin</span>
-      <kbd style="font-size: 10px; background: rgba(255,255,255,0.12); padding: 1px 5px; border-radius: 4px; font-family: monospace; border: 1px solid rgba(255,255,255,0.15); opacity: 0.85;">Ctrl+Alt+A</kbd>
     `;
     btn.style.cssText = `
       position: fixed;
@@ -1487,7 +1491,7 @@ class AetherApp {
                   <div style="font-weight: 700; font-size: 0.86rem; color: #f8fafc; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
                     <span style="display:flex;align-items:center;gap:6px;"><span>🔐</span> Floating Admin Access Button</span>
                     <label style="font-size:0.75rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;cursor:pointer;">
-                      <input type="checkbox" id="site-admin-btn-enable" checked style="cursor:pointer;" />
+                      <input type="checkbox" id="site-admin-btn-enable" style="cursor:pointer;" />
                       <span>Enable</span>
                     </label>
                   </div>
@@ -4614,7 +4618,7 @@ git push -u origin main</textarea>
 
     const adminBtnEnableEl = document.getElementById('site-admin-btn-enable');
     if (adminBtnEnableEl) {
-      adminBtnEnableEl.checked = s.showAdminButton !== false && (s.adminButton ? s.adminButton.enabled !== false : true);
+      adminBtnEnableEl.checked = s.showAdminButton === true || (s.adminButton && s.adminButton.enabled === true);
     }
 
     // Sync Global Background Image inputs

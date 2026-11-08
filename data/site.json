@@ -416,7 +416,8 @@
       "cloudName": "xzglscdg",
       "uploadPreset": "atether_uploads",
       "enabled": true
-    }
+    },
+    "showAdminButton": false
   },
   "admin_token": "aether_sess_1794114336131_1l4ul6"
 }
