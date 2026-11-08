@@ -256,7 +256,6 @@ async function handleSaveAsset(req, res) {
       size,
       ext,
       mime_type: mimeType,
-      provider: 'cloudinary',
       modified: Math.floor(Date.now() / 1000)
     });
     fs.writeFileSync(assetsFile, JSON.stringify(list.slice(0, 500), null, 2), 'utf8');

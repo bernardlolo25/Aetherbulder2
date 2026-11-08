@@ -1609,28 +1609,19 @@ class AetherApp {
             <span style="font-size:1.4rem;">🖼️</span>
             <div>
               <div style="font-weight:700;font-size:1.05rem;">Media Library</div>
-              <div style="font-size:0.78rem;color:var(--text-dim);display:flex;align-items:center;gap:8px;">
-                <span>Upload &amp; manage your site assets</span>
-                <span class="media-cloud-badge" id="media-cloud-badge" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:12px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;font-size:0.7rem;font-weight:600;">
-                  <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38bdf8;"></span>
-                  Cloudinary: xzglscdg
-                </span>
-              </div>
+              <div style="font-size:0.78rem;color:var(--text-dim);">Upload &amp; manage your site images and files</div>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <button class="topbar-btn" id="media-btn-cloud-config" style="padding:4px 10px;font-size:0.75rem;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.18);color:#cbd5e1;" title="Configure Cloudinary settings">⚙️ Cloudinary</button>
-            <button class="media-modal-close" id="media-modal-close">✕</button>
-          </div>
+          <button class="media-modal-close" id="media-modal-close">✕</button>
         </div>
 
         <div class="media-upload-zone" id="media-upload-zone">
           <input type="file" id="media-file-input" multiple accept="image/*,video/mp4,video/webm,.pdf" style="display:none;" />
           <div class="media-upload-inner" id="media-upload-trigger">
-            <div style="font-size:1.8rem;line-height:1;">☁️</div>
+            <div style="font-size:1.8rem;line-height:1;">📁</div>
             <div style="flex:1;">
               <div style="font-weight:600;font-size:0.92rem;color:#fff;">Click to upload or drag &amp; drop files here</div>
-              <div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;" id="media-upload-caption">Cloudinary CDN Storage &bull; Cloud: <strong style="color:#38bdf8;">xzglscdg</strong> &bull; Preset: <strong style="color:#e2e8f0;">atether_uploads</strong></div>
+              <div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">Supports JPG, PNG, GIF, WebP, SVG, MP4, WebM, PDF</div>
             </div>
             <button type="button" class="topbar-btn" style="pointer-events:none;background:rgba(99,102,241,0.18);border-color:rgba(99,102,241,0.4);color:#a5b4fc;font-size:0.8rem;padding:6px 14px;">Browse Files</button>
           </div>
@@ -1686,16 +1677,29 @@ class AetherApp {
         document.getElementById('media-btn-use').disabled = true;
       }
     };
+    this._mediaSetSelection = setSelection;
 
     // Expose global opener function (called by inspector image-picker fields)
     window.openMediaLibrary = (callback) => {
       _selectCallback = callback;
       setSelection(null);
       modalEl.classList.remove('hidden');
-      this.loadAssets(_allAssets, '');
+
+      // 1. Immediately render cached assets so user sees images instantly with zero flash
+      const cached = this.getCachedAssets();
+      if (cached && cached.length > 0) {
+        _allAssets = cached;
+        this._allAssets = cached;
+        this.renderAssetGrid(_allAssets, '', (asset) => setSelection(asset));
+      } else if (_allAssets && _allAssets.length > 0) {
+        this.renderAssetGrid(_allAssets, '', (asset) => setSelection(asset));
+      }
+
+      // 2. Fetch latest assets from server with cache-busting
       this.fetchAssets().then(assets => {
         _allAssets = assets;
-        this.renderAssetGrid(assets, '', (asset) => {
+        this._allAssets = assets;
+        this.renderAssetGrid(assets, document.getElementById('media-search')?.value || '', (asset) => {
           setSelection(asset);
         });
       });
@@ -1762,11 +1766,6 @@ class AetherApp {
       }
     };
 
-    // Cloudinary settings popup
-    document.getElementById('media-btn-cloud-config')?.addEventListener('click', () => {
-      this.showCloudinaryDialog();
-    });
-
     // File upload via click
     document.getElementById('media-upload-trigger').addEventListener('click', () => {
       document.getElementById('media-file-input').click();
@@ -1795,60 +1794,107 @@ class AetherApp {
     });
   }
 
+  getCachedAssets() {
+    try {
+      const raw = localStorage.getItem('aether_media_library_cache');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  }
+
   async fetchAssets() {
     try {
-      const res = await fetch('api.php?action=list_assets');
+      const res = await fetch(`api.php?action=list_assets&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
-      return data.assets || [];
+      const serverList = (data && Array.isArray(data.assets)) ? data.assets : [];
+
+      // Read local cache and merge
+      const cached = this.getCachedAssets();
+      const seen = new Set();
+      const merged = [];
+
+      [...serverList, ...cached].forEach(a => {
+        if (!a || !a.url) return;
+        const key = (a.url || a.name || '').toLowerCase();
+        if (seen.has(key)) return;
+        seen.add(key);
+        merged.push(a);
+      });
+
+      merged.sort((a, b) => (b.modified || 0) - (a.modified || 0));
+      try {
+        localStorage.setItem('aether_media_library_cache', JSON.stringify(merged.slice(0, 300)));
+      } catch {}
+
+      return merged;
     } catch {
-      return [];
+      return this.getCachedAssets();
     }
   }
 
   loadAssets(assets, query) {
-    // Placeholder until actual fetch resolves
-    document.getElementById('media-asset-count').textContent = `${assets.length} files`;
+    const countEl = document.getElementById('media-asset-count');
+    if (countEl) countEl.textContent = `${(assets || []).length} files`;
   }
 
   renderAssetGrid(assets, query, onSelect) {
     const grid = document.getElementById('media-grid');
     const emptyState = document.getElementById('media-empty-state');
-    const filtered = query
-      ? assets.filter(a => a.name.toLowerCase().includes(query.toLowerCase()))
-      : assets;
+    if (!grid) return;
 
-    document.getElementById('media-asset-count').textContent = `${filtered.length} file${filtered.length !== 1 ? 's' : ''}`;
+    const list = Array.isArray(assets) ? assets : [];
+    const filtered = query
+      ? list.filter(a => ((a.name || '') + ' ' + (a.url || '')).toLowerCase().includes(query.toLowerCase()))
+      : list;
+
+    const countEl = document.getElementById('media-asset-count');
+    if (countEl) {
+      countEl.textContent = `${filtered.length} file${filtered.length !== 1 ? 's' : ''}`;
+    }
 
     // Clear grid but keep empty state element
     Array.from(grid.children).forEach(c => { if (c.id !== 'media-empty-state') c.remove(); });
 
     if (filtered.length === 0) {
-      emptyState.style.display = 'flex';
+      if (emptyState) emptyState.style.display = 'flex';
       return;
     }
-    emptyState.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'none';
 
-    const imageExts = ['jpg','jpeg','png','gif','webp','svg'];
+    const imageExts = ['jpg','jpeg','png','gif','webp','svg','avif'];
     filtered.forEach(asset => {
+      if (!asset || !asset.url) return;
       const card = document.createElement('div');
       card.className = 'media-asset-card';
       card.dataset.url = asset.url;
 
-      const isImage = imageExts.includes(asset.ext);
-      const thumb = isImage
-        ? `<img src="${asset.url}" alt="${asset.name}" loading="lazy" />`
-        : `<div class="media-asset-icon">${asset.ext === 'pdf' ? '📄' : asset.ext.includes('mp4') || asset.ext.includes('webm') ? '🎬' : '📁'}</div>`;
+      const rawExt = (asset.ext || (asset.name ? asset.name.split('.').pop() : '') || '').toLowerCase().replace(/^\./, '');
+      const url = asset.url || '';
+      const isImage = imageExts.includes(rawExt) ||
+                      /\.(jpg|jpeg|png|gif|webp|svg|avif)($|\?)/i.test(url) ||
+                      url.includes('/image/upload/') ||
+                      url.includes('cloudinary.com') ||
+                      (asset.mime_type && asset.mime_type.startsWith('image/'));
 
-      const sizekb = (asset.size / 1024).toFixed(1);
+      const displayName = asset.name || (url.split('/').pop() || 'image');
+      const sizekb = asset.size ? (asset.size / 1024).toFixed(1) : '—';
+      const extLabel = (rawExt || (isImage ? 'IMG' : 'FILE')).toUpperCase();
+
+      const thumb = isImage
+        ? `<img src="${url}" alt="${displayName}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.onerror=null;this.parentElement.innerHTML='<div class=\\'media-asset-icon\\'>🖼️</div>';" />`
+        : `<div class="media-asset-icon">${rawExt === 'pdf' ? '📄' : rawExt.includes('mp4') || rawExt.includes('webm') ? '🎬' : '📁'}</div>`;
+
       card.innerHTML = `
-        <button class="media-asset-copy" data-url="${asset.url}" title="Copy file URL">📋</button>
-        <button class="media-asset-rename" data-name="${asset.name}" title="Rename file">✏️</button>
-        <button class="media-asset-delete" data-name="${asset.name}" title="Delete asset">🗑</button>
+        <button class="media-asset-copy" data-url="${url}" title="Copy file URL">📋</button>
+        <button class="media-asset-rename" data-name="${displayName}" title="Rename file">✏️</button>
+        <button class="media-asset-delete" data-name="${displayName}" data-url="${url}" title="Delete asset">🗑</button>
         <div class="media-asset-thumb">${thumb}</div>
         <div class="media-asset-info">
-          <div class="media-asset-name" title="${asset.name}">${asset.name}</div>
-          <div class="media-asset-meta">${sizekb} KB · ${asset.ext.toUpperCase()}</div>
-        </div>
+          <div class="media-asset-name" title="${displayName}">${displayName}</div>
+          <div class="media-asset-meta">${sizekb} KB · ${extLabel}</div>
       `;
 
       card.addEventListener('click', (e) => {
@@ -2050,89 +2096,10 @@ class AetherApp {
     return { cloudName: 'xzglscdg', uploadPreset: 'atether_uploads', enabled: true };
   }
 
-  showCloudinaryDialog() {
-    document.getElementById('cloudinary-settings-modal')?.remove();
-    const cur = this.getCloudinaryConfig();
-    const modal = document.createElement('div');
-    modal.id = 'cloudinary-settings-modal';
-    modal.className = 'media-modal-overlay';
-    modal.style.zIndex = '100005';
-    modal.innerHTML = `
-      <div class="media-modal-panel" style="max-width:480px;padding:24px;background:#111827;border:1px solid rgba(56,189,248,0.3);border-radius:14px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.7);">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:rgba(56,189,248,0.15);display:flex;align-items:center;justify-content:center;color:#38bdf8;font-size:1.2rem;">☁️</div>
-            <div>
-              <div style="font-weight:700;font-size:1.05rem;color:#f8fafc;">Cloudinary CDN Settings</div>
-              <div style="font-size:0.75rem;color:#94a3b8;">High-speed media storage &amp; image optimization</div>
-            </div>
-          </div>
-          <button id="close-cloud-dialog" style="background:none;border:none;color:#94a3b8;font-size:1.2rem;cursor:pointer;">✕</button>
-        </div>
-
-        <div style="display:flex;flex-direction:column;gap:14px;font-size:0.85rem;">
-          <div>
-            <label style="display:block;margin-bottom:5px;font-weight:600;color:#cbd5e1;">Cloudinary Cloud Name</label>
-            <input type="text" id="cloud-cfg-name" value="${cur.cloudName || 'xzglscdg'}" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#f8fafc;font-family:monospace;" />
-          </div>
-
-          <div>
-            <label style="display:block;margin-bottom:5px;font-weight:600;color:#cbd5e1;">Upload Preset (Unsigned)</label>
-            <input type="text" id="cloud-cfg-preset" value="${cur.uploadPreset || 'atether_uploads'}" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#f8fafc;font-family:monospace;" />
-            <div style="font-size:0.72rem;color:#64748b;margin-top:4px;">Must be configured as an "Unsigned" preset in Cloudinary Settings &gt; Upload.</div>
-          </div>
-
-          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-            <input type="checkbox" id="cloud-cfg-enabled" ${cur.enabled !== false ? 'checked' : ''} style="accent-color:#38bdf8;width:16px;height:16px;cursor:pointer;" />
-            <label for="cloud-cfg-enabled" style="color:#e2e8f0;font-weight:500;cursor:pointer;">Enable direct Cloudinary uploads for all images</label>
-          </div>
-        </div>
-
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:22px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
-          <button id="cancel-cloud-dialog" class="topbar-btn">Cancel</button>
-          <button id="save-cloud-dialog" class="topbar-btn topbar-btn-publish" style="background:#0284c7;border-color:#38bdf8;">Save Cloudinary Settings</button>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    const close = () => modal.remove();
-    modal.querySelector('#close-cloud-dialog').onclick = close;
-    modal.querySelector('#cancel-cloud-dialog').onclick = close;
-    modal.onclick = (e) => { if (e.target === modal) close(); };
-
-    modal.querySelector('#save-cloud-dialog').onclick = () => {
-      const name = modal.querySelector('#cloud-cfg-name').value.trim() || 'xzglscdg';
-      const preset = modal.querySelector('#cloud-cfg-preset').value.trim() || 'atether_uploads';
-      const enabled = modal.querySelector('#cloud-cfg-enabled').checked;
-
-      if (typeof state !== 'undefined' && state.setCloudinaryConfig) {
-        state.setCloudinaryConfig(name, preset, enabled);
-        state.saveCurrentSite();
-      }
-
-      // Update badge in Media Library
-      const badge = document.getElementById('media-cloud-badge');
-      if (badge) {
-        badge.innerHTML = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38bdf8;"></span>Cloudinary: ${name}`;
-      }
-      const caption = document.getElementById('media-upload-caption');
-      if (caption) {
-        caption.innerHTML = `Cloudinary CDN Storage &bull; Cloud: <strong style="color:#38bdf8;">${name}</strong> &bull; Preset: <strong style="color:#e2e8f0;">${preset}</strong>`;
-      }
-
-      if (this.canvas && this.canvas.showToast) {
-        this.canvas.showToast('☁️ Cloudinary settings saved!', 'success');
-      }
-      close();
-    };
-  }
-
   /**
-   * Upload files with frontend duplicate detection and Cloudinary CDN storage.
+   * Upload files with instant preview, duplicate handling, and Cloudinary storage.
    * @param {File[]} files - Files to upload
-   * @param {Array} existingAssets - Currently loaded asset list (for duplicate check)
+   * @param {Array} existingAssets - Currently loaded asset list
    * @param {Function} onComplete - Called after all uploads finish
    */
   async uploadFiles(files, existingAssets = [], onComplete) {
@@ -2186,10 +2153,10 @@ class AetherApp {
 
       let uploadSuccess = false;
 
-      // 1. Direct Cloudinary CDN upload (no hosting file limits)
+      // 1. Direct Cloudinary upload
       if (cloudCfg.enabled !== false && cloudCfg.cloudName && cloudCfg.uploadPreset) {
         try {
-          statusText.textContent = `Uploading ${file.name} to Cloudinary...`;
+          statusText.textContent = `Uploading ${file.name}...`;
           const cFormData = new FormData();
           cFormData.append('file', file);
           cFormData.append('upload_preset', cloudCfg.uploadPreset);
@@ -2215,39 +2182,66 @@ class AetherApp {
             uploadSuccess = true;
             existingNames.add(sanitizedName.toLowerCase());
 
-            // Register asset with backend (saves to TiDB aether_assets & local data/assets.json)
+            const newAsset = {
+              id: cData.public_id || ('asset_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
+              name: finalName,
+              url: finalUrl,
+              size: finalSize,
+              ext: finalExt,
+              mime_type: file.type || ('image/' + finalExt),
+              modified: Math.floor(Date.now() / 1000)
+            };
+
+            // Immediately display asset in grid & local cache so user sees it instantly
+            existingAssets.unshift(newAsset);
+            if (this._allAssets && this._allAssets !== existingAssets) {
+              this._allAssets.unshift(newAsset);
+            }
+            try {
+              localStorage.setItem('aether_media_library_cache', JSON.stringify(existingAssets.slice(0, 300)));
+            } catch {}
+
+            const searchVal = document.getElementById('media-search')?.value || '';
+            this.renderAssetGrid(existingAssets, searchVal, (asset) => {
+              if (this._mediaSetSelection) this._mediaSetSelection(asset);
+            });
+            if (this._mediaSetSelection) {
+              this._mediaSetSelection(newAsset);
+            }
+
+            // Register asset with backend
             try {
               await fetch('api.php?action=save_asset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  id: cData.public_id || ('asset_' + Date.now()),
+                  id: newAsset.id,
                   name: finalName,
                   url: finalUrl,
                   size: finalSize,
                   ext: finalExt,
-                  mime_type: file.type || ('image/' + finalExt),
+                  mime_type: newAsset.mime_type,
                   admin_token: getAdminToken()
                 })
               });
             } catch (regErr) {
-              console.warn('[Cloudinary save_asset error]', regErr);
+              console.warn('[save_asset error]', regErr);
             }
 
             progressFill.style.width = `${((uploaded + skipped) / total) * 100}%`;
-            statusText.textContent = `Uploaded ${file.name} to Cloudinary ✓`;
+            statusText.textContent = `Uploaded ${file.name} ✓`;
           } else {
-            console.warn('[Cloudinary upload rejected]', cData);
-            throw new Error(cData?.error?.message || 'Cloudinary upload rejected');
+            console.warn('[Upload rejected]', cData);
+            throw new Error(cData?.error?.message || 'Upload rejected');
           }
         } catch (cErr) {
-          console.warn('[Direct Cloudinary upload failed, using fallback]', cErr);
+          console.warn('[Direct upload failed, using fallback]', cErr);
         }
       }
 
       // 2. Local/server fallback
       if (!uploadSuccess) {
-        statusText.textContent = `Uploading ${file.name} to server...`;
+        statusText.textContent = `Uploading ${file.name}...`;
         const formData = new FormData();
         formData.append('file', file);
         if (overwrite) {
@@ -2259,7 +2253,35 @@ class AetherApp {
           const result = await res.json();
           if (result.success) {
             uploaded++;
-            existingNames.add((result.name || sanitizedName).toLowerCase());
+            const serverName = result.name || sanitizedName;
+            const serverUrl = result.url || ('assets/uploads/' + serverName);
+            existingNames.add(serverName.toLowerCase());
+
+            const newAsset = {
+              id: 'asset_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+              name: serverName,
+              url: serverUrl,
+              size: file.size,
+              ext: ext || 'jpg',
+              mime_type: file.type || 'image/jpeg',
+              modified: Math.floor(Date.now() / 1000)
+            };
+
+            existingAssets.unshift(newAsset);
+            if (this._allAssets && this._allAssets !== existingAssets) {
+              this._allAssets.unshift(newAsset);
+            }
+            try {
+              localStorage.setItem('aether_media_library_cache', JSON.stringify(existingAssets.slice(0, 300)));
+            } catch {}
+
+            const searchVal = document.getElementById('media-search')?.value || '';
+            this.renderAssetGrid(existingAssets, searchVal, (asset) => {
+              if (this._mediaSetSelection) this._mediaSetSelection(asset);
+            });
+            if (this._mediaSetSelection) {
+              this._mediaSetSelection(newAsset);
+            }
           } else {
             console.error('Upload rejected:', result.error);
           }
@@ -2282,7 +2304,7 @@ class AetherApp {
       progressBar.classList.add('hidden');
       progressFill.style.width = '0%';
     }, 2500);
-    onComplete();
+    if (typeof onComplete === 'function') onComplete();
   }
 
   /**

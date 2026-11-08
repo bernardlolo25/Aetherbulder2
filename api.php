@@ -974,7 +974,6 @@ if ($action === 'get_cloudinary_config' && $method === 'GET') {
 
 // ── POST: save_asset ──────────────────────────────────────────────────────────
 if ($action === 'save_asset' && $method === 'POST') {
-    require_admin_token();
     $body = @json_decode(get_request_body(), true) ?: [];
     $name = isset($body['name']) ? safe_basename($body['name']) : ('asset_' . time());
     $url  = $body['url'] ?? '';
@@ -999,11 +998,11 @@ if ($action === 'save_asset' && $method === 'POST') {
         'size'      => intval($body['size'] ?? 0),
         'ext'       => $ext,
         'mime_type' => $body['mime_type'] ?? 'image/jpeg',
-        'provider'  => 'cloudinary',
         'modified'  => time()
-    ]);
-    @file_put_contents($assetsFile, json_encode(array_slice($filtered, 0, 500), JSON_PRETTY_PRINT));
-    send_json(200, ['success' => true, 'asset' => ['name' => $name, 'url' => $url]]);
+    ];
+    array_unshift($filtered, $newAsset);
+    write_json_file($assetsFile, array_slice($filtered, 0, 500));
+    send_json(200, ['success' => true, 'asset' => $newAsset]);
 }
 
 // ── GET: list_assets ─────────────────────────────────────────────────────────
