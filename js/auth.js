@@ -92,8 +92,34 @@ export class Argon2Auth {
     return isValid;
   }
 
-  // Ensures there is an initial admin hash in localStorage (default: 'admin123')
+  // Synchronizes admin hash with server config so changes persist globally across all devices
+  async syncRemoteHash() {
+    try {
+      const res = await fetch(`api.php?action=get_admin_hash&_t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.has_hash && data.argon2_hash && data.argon2_hash.startsWith('$argon2')) {
+          localStorage.setItem(AUTH_STORAGE_KEY, data.argon2_hash);
+          return data.argon2_hash;
+        }
+      }
+    } catch (err) {
+      // offline / quiet fallback
+    }
+    return this.getStoredHash();
+  }
+
+  // Ensures admin hash is initialized from global server config or local storage (default: 'admin123')
   async ensureDefaultAdmin() {
+    // 1. Pull latest global hash from server first
+    try {
+      const remoteHash = await this.syncRemoteHash();
+      if (remoteHash && remoteHash.startsWith('$argon2')) {
+        return;
+      }
+    } catch {}
+
+    // 2. Fallback to local storage or initial default
     let currentHash = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!currentHash) {
       currentHash = DEFAULT_ADMIN_HASH;
@@ -136,7 +162,7 @@ export class Argon2Auth {
       storedHash = this.getStoredHash();
     }
 
-    const targetHash = storedHash || DEFAULT_ADMIN_HASH;
+    let targetHash = storedHash || DEFAULT_ADMIN_HASH;
     const startTime = performance.now();
     let valid = false;
 
@@ -152,6 +178,17 @@ export class Argon2Auth {
     // Direct fallback for initial default admin password
     if (!valid && password === 'admin123' && (!targetHash || targetHash === DEFAULT_ADMIN_HASH)) {
       valid = true;
+    }
+
+    // If verification failed locally, synchronize with remote server in case password was changed on another device
+    if (!valid) {
+      try {
+        const freshHash = await this.syncRemoteHash();
+        if (freshHash && freshHash !== targetHash) {
+          targetHash = freshHash;
+          valid = await this.verifyPassword(password, targetHash);
+        }
+      } catch (e) {}
     }
 
     const computeTime = Math.round(performance.now() - startTime);
@@ -234,7 +271,7 @@ export class Argon2Auth {
           'Content-Type': 'application/json',
           'X-Admin-Token': this.getAdminToken()
         },
-        body: JSON.stringify({ argon2_hash: newHash })
+        body: JSON.stringify({ argon2_hash: newHash, admin_token: this.getAdminToken() })
       });
     } catch (e) {
       console.warn('Could not sync password to server:', e);

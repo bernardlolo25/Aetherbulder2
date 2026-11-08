@@ -363,6 +363,65 @@ http.createServer(async (req, res) => {
       return json(res, 200, { success: true, token: devToken });
     }
 
+    // GET: get_admin_hash (global multi-device master Argon2 password sync)
+    if (req.method === 'GET' && action === 'get_admin_hash') {
+      let storedHash = '';
+      if (tidbClient) {
+        try {
+          const rows = await tidbClient.execute('SELECT value_data FROM aether_config WHERE key_name = ? LIMIT 1', ['admin_hash']);
+          if (rows && rows.length > 0) {
+            const val = rows[0].value_data;
+            storedHash = typeof val === 'string' ? JSON.parse(val) : val;
+          }
+        } catch (e) {}
+      }
+      if (!storedHash) {
+        try {
+          const cfgPath = path.join(ROOT, 'data', 'config.json');
+          if (fs.existsSync(cfgPath)) {
+            const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}');
+            storedHash = cfg.admin_hash || '';
+          }
+        } catch (e) {}
+      }
+      return json(res, 200, {
+        success: true,
+        has_hash: Boolean(storedHash),
+        argon2_hash: storedHash || ''
+      });
+    }
+
+    // POST: save_admin_hash (persist new password globally to config & database)
+    if (req.method === 'POST' && action === 'save_admin_hash') {
+      try {
+        const bodyStr = (await readBody(req)).toString('utf8');
+        const body = JSON.parse(bodyStr || '{}');
+        const newHash = (body.argon2_hash || '').trim();
+        if (!newHash) return json(res, 400, { error: 'No hash provided' });
+
+        if (tidbClient) {
+          try {
+            await tidbClient.execute(
+              'INSERT INTO aether_config (key_name, value_data, updated_at) VALUES (?, ?, NOW(6)) ON DUPLICATE KEY UPDATE value_data = VALUES(value_data), updated_at = NOW(6)',
+              ['admin_hash', JSON.stringify(newHash)]
+            );
+          } catch (e) {}
+        }
+        try {
+          const cfgPath = path.join(ROOT, 'data', 'config.json');
+          let cfg = {};
+          if (fs.existsSync(cfgPath)) {
+            try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
+          }
+          cfg.admin_hash = newHash;
+          fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf8');
+        } catch (e) {}
+        return json(res, 200, { success: true, message: 'Admin password updated globally.' });
+      } catch (err) {
+        return json(res, 500, { error: err.message });
+      }
+    }
+
     // GET: get_site
     if (req.method === 'GET' && action === 'get_site') {
       if (tidbClient) {

@@ -58,6 +58,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return sendJson(res, 200, { success: true, token: devToken, authenticated: true });
     }
 
+    if (action === 'get_admin_hash') {
+      let storedHash = '';
+      if (useTiDB) {
+        try {
+          const rows = await executeTiDB<{ value_data: any }>(
+            'SELECT value_data FROM aether_config WHERE key_name = ? LIMIT 1',
+            ['admin_hash']
+          );
+          if (rows && rows.length > 0) {
+            const val = rows[0].value_data;
+            storedHash = typeof val === 'string' ? (val.startsWith('"') ? JSON.parse(val) : val) : String(val);
+          }
+        } catch (e) {}
+      }
+      if (!storedHash) {
+        try {
+          const cfgPath = path.join(process.cwd(), 'data', 'config.json');
+          if (fs.existsSync(cfgPath)) {
+            const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}');
+            storedHash = cfg.admin_hash || '';
+          }
+        } catch (e) {}
+      }
+      return sendJson(res, 200, {
+        success: true,
+        has_hash: Boolean(storedHash),
+        argon2_hash: storedHash || ''
+      });
+    }
+
+    if (action === 'save_admin_hash') {
+      const body = req.body || {};
+      const newHash = String(body.argon2_hash || '').trim();
+      if (!newHash) return sendJson(res, 400, { error: 'No hash provided' });
+
+      if (useTiDB) {
+        try {
+          await executeTiDB(
+            'INSERT INTO aether_config (key_name, value_data, updated_at) VALUES (?, ?, NOW(6)) ON DUPLICATE KEY UPDATE value_data = VALUES(value_data), updated_at = NOW(6)',
+            ['admin_hash', JSON.stringify(newHash)]
+          );
+        } catch (e) {}
+      }
+      try {
+        const cfgPath = path.join(process.cwd(), 'data', 'config.json');
+        let cfg: any = {};
+        if (fs.existsSync(cfgPath)) {
+          try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
+        }
+        cfg.admin_hash = newHash;
+        fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf8');
+      } catch (e) {}
+      return sendJson(res, 200, { success: true, message: 'Admin password updated globally.' });
+    }
+
     // ── 3. GET: get_site ─────────────────────────────────────────────────────
     if (action === 'get_site') {
       if (useTiDB) {

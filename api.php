@@ -465,7 +465,7 @@ function save_admin_hash_to_config($hash) {
         $cfg['server_secret'] = bin2hex(random_bytes(32));
     }
     $cfg['admin_hash'] = $hash;
-    file_put_contents(CONFIG_FILE, json_encode($cfg, JSON_PRETTY_PRINT));
+    write_json_file(CONFIG_FILE, $cfg);
     @chmod(CONFIG_FILE, 0600);
 }
 
@@ -635,6 +635,16 @@ if ($action === 'save_admin_hash' && $method === 'POST') {
     if (!$newHash) send_json(400, ['error' => 'No hash provided']);
     save_admin_hash_to_config($newHash);
     send_json(200, ['success' => true, 'message' => 'Admin password updated successfully.']);
+}
+
+// GET: get_admin_hash — fetch stored Argon2 hash for global multi-device synchronization
+if ($action === 'get_admin_hash' && $method === 'GET') {
+    $storedHash = get_admin_hash_from_config();
+    send_json(200, [
+        'success'     => true,
+        'has_hash'    => !empty($storedHash),
+        'argon2_hash' => $storedHash ?: ''
+    ]);
 }
 
 // GET: validate_token — check if current token is still valid
