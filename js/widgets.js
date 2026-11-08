@@ -2096,7 +2096,7 @@ export const WIDGET_REGISTRY = {
         rawCopyright = rawCopyright.replace(/©\s*(20\d\d)/, `© ${currentYear}`);
       }
 
-      const align = props.copyrightAlignment || 'center';
+      const align = (props.copyrightAlignment || 'center').toLowerCase();
       const justifyVal = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
 
       const parseLinks = (linesText) => {
@@ -2116,6 +2116,27 @@ export const WIDGET_REGISTRY = {
       const bottomLinksHtml = props.showBottomLinks && props.bottomLinks
         ? parseLinks(props.bottomLinks).join('')
         : '';
+
+      let bottomRowStyle = '';
+      let copyrightWrapStyle = '';
+
+      if (!bottomLinksHtml) {
+        // Single copyright notice: align directly to center, left, or right
+        bottomRowStyle = `display: flex; align-items: center; justify-content: ${justifyVal}; text-align: ${align}; width: 100%; flex-wrap: wrap; gap: 12px;`;
+        copyrightWrapStyle = `display: flex; align-items: center; justify-content: ${justifyVal}; text-align: ${align}; width: 100%; gap: 14px; flex-wrap: wrap;`;
+      } else if (align === 'center') {
+        // Centered copyright with bottom links: center both stacked
+        bottomRowStyle = `display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 10px;`;
+        copyrightWrapStyle = `display: flex; align-items: center; justify-content: center; text-align: center; width: 100%; gap: 14px; flex-wrap: wrap;`;
+      } else if (align === 'right') {
+        // Right-aligned copyright with bottom links on left
+        bottomRowStyle = `display: flex; align-items: center; justify-content: space-between; text-align: right; width: 100%; flex-wrap: wrap; gap: 12px; flex-direction: row-reverse;`;
+        copyrightWrapStyle = `display: flex; align-items: center; justify-content: flex-end; text-align: right; gap: 14px; flex-wrap: wrap;`;
+      } else {
+        // Left-aligned copyright with bottom links on right
+        bottomRowStyle = `display: flex; align-items: center; justify-content: space-between; text-align: left; width: 100%; flex-wrap: wrap; gap: 12px;`;
+        copyrightWrapStyle = `display: flex; align-items: center; justify-content: flex-start; text-align: left; gap: 14px; flex-wrap: wrap;`;
+      }
 
       // Admin Login Link in Footer (toggled via props.showAdminLogin)
       const adminLoginHtml = (props.showAdminLogin !== false)
@@ -2139,12 +2160,12 @@ export const WIDGET_REGISTRY = {
       if (props.showOnlyCopyright) {
         return spacerHtml + `
           <footer class="wb-footer is-minimal" style="${fixedStyle} padding: 24px 20px; border-top: 1px solid var(--border-subtle); background: rgba(9, 13, 22, 0.7); width: 100%;">
-            <div class="wb-footer-bottom" style="margin: 0 auto; border-top: none; padding-top: 0; display: flex; align-items: center; justify-content: space-between; text-align: ${align}; width: 100%; max-width: 1240px; flex-wrap: wrap; gap: 12px;">
-              <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap; color: var(--text-dim); font-size: 0.88rem;">
+            <div class="wb-footer-bottom" style="margin: 0 auto; border-top: none; padding-top: 0; max-width: 1240px; ${bottomRowStyle}">
+              <div style="${copyrightWrapStyle} color: var(--text-dim); font-size: 0.88rem;">
                 <span>${rawCopyright}</span>
                 ${adminLoginHtml}
               </div>
-              ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">${bottomLinksHtml}</div>` : ''}
+              ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center; ${align === 'center' ? 'justify-content: center;' : ''}">${bottomLinksHtml}</div>` : ''}
             </div>
           </footer>
         `;
@@ -2189,12 +2210,12 @@ export const WIDGET_REGISTRY = {
             </div>
             ${columnsHtml}
           </div>
-          <div class="wb-footer-bottom" style="display: flex; align-items: center; justify-content: space-between; text-align: ${align}; flex-wrap: wrap; gap: 12px;">
-            <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+          <div class="wb-footer-bottom" style="${bottomRowStyle}">
+            <div style="${copyrightWrapStyle}">
               <span>${rawCopyright}</span>
               ${adminLoginHtml}
             </div>
-            ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center;">${bottomLinksHtml}</div>` : ''}
+            ${bottomLinksHtml ? `<div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center; ${align === 'center' ? 'justify-content: center;' : ''}">${bottomLinksHtml}</div>` : ''}
           </div>
         </footer>
       `;
