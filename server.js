@@ -19,12 +19,26 @@ function normalizeDbUrl(rawUrl) {
 }
 
 let tidbClient = null;
-if (process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL) {
+const hasDbUrl = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
+const hasSeparateVars = process.env.TIDB_HOST && (process.env.TIDB_USER || process.env.TIDB_USERNAME);
+
+if (hasDbUrl || hasSeparateVars) {
   try {
     const { connect } = require('@tidbcloud/serverless');
-    const dbUrl = normalizeDbUrl(process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL);
-    tidbClient = connect({ url: dbUrl });
-    console.log('[TiDB] Connected to TiDB Cloud Serverless:', dbUrl.replace(/:[^:@]+@/, ':****@'));
+    if (hasDbUrl) {
+      const dbUrl = normalizeDbUrl(hasDbUrl);
+      tidbClient = connect({ url: dbUrl });
+      console.log('[TiDB] Connected via DATABASE_URL to:', dbUrl.replace(/:[^:@]+@/, ':****@'));
+    } else {
+      const cleanDb = (!process.env.TIDB_DATABASE || process.env.TIDB_DATABASE.toLowerCase() === 'sys') ? 'test' : process.env.TIDB_DATABASE;
+      tidbClient = connect({
+        host: process.env.TIDB_HOST,
+        username: process.env.TIDB_USER || process.env.TIDB_USERNAME,
+        password: process.env.TIDB_PASSWORD || '',
+        database: cleanDb
+      });
+      console.log(`[TiDB] Connected via individual env vars: Host=${process.env.TIDB_HOST}, User=${process.env.TIDB_USER || process.env.TIDB_USERNAME}, DB=${cleanDb}`);
+    }
   } catch (err) {
     console.warn('[TiDB] Failed to initialize connection:', err.message);
   }

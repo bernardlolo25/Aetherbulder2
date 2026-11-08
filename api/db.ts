@@ -34,23 +34,44 @@ export function normalizeDatabaseUrl(rawUrl: string): string {
 }
 
 export function isTiDBConfigured(): boolean {
-  return !!(process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL);
+  return !!(
+    process.env.DATABASE_URL || 
+    process.env.TIDB_DATABASE_URL ||
+    (process.env.TIDB_HOST && (process.env.TIDB_USER || process.env.TIDB_USERNAME))
+  );
 }
 
 export function getTiDBClient(): TiDBConnection | null {
-  const rawUrl = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
-  if (!rawUrl) return null;
+  if (client) return client;
 
-  if (!client) {
-    try {
+  const rawUrl = process.env.DATABASE_URL || process.env.TIDB_DATABASE_URL;
+  const host = process.env.TIDB_HOST;
+  const username = process.env.TIDB_USER || process.env.TIDB_USERNAME;
+  const password = process.env.TIDB_PASSWORD || '';
+  const rawDb = process.env.TIDB_DATABASE || 'test';
+  const cleanDb = (!rawDb || rawDb.toLowerCase() === 'sys') ? 'test' : rawDb;
+
+  try {
+    if (rawUrl) {
       const fixedUrl = normalizeDatabaseUrl(rawUrl);
       client = connect({ url: fixedUrl });
-      console.log('[TiDB] Initialized connection to:', fixedUrl.replace(/:[^:@]+@/, ':****@'));
-    } catch (err) {
-      console.error('Failed to initialize TiDB Serverless client:', err);
+      console.log('[TiDB] Connected via DATABASE_URL to:', fixedUrl.replace(/:[^:@]+@/, ':****@'));
+    } else if (host && username) {
+      client = connect({
+        host,
+        username,
+        password,
+        database: cleanDb
+      });
+      console.log(`[TiDB] Connected via individual env vars: Host=${host}, User=${username}, DB=${cleanDb}`);
+    } else {
       return null;
     }
+  } catch (err) {
+    console.error('Failed to initialize TiDB Serverless client:', err);
+    return null;
   }
+
   return client;
 }
 
