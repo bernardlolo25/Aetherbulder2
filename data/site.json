@@ -411,7 +411,12 @@
     },
     "siteTitle": "New Aether Site",
     "loaderEnabled": true,
-    "loaderShowSubcaption": true
+    "loaderShowSubcaption": true,
+    "cloudinary": {
+      "cloudName": "xzglscdg",
+      "uploadPreset": "atether_uploads",
+      "enabled": true
+    }
   },
   "admin_token": "aether_sess_1794114336131_1l4ul6"
 }

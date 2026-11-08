@@ -159,28 +159,109 @@ function parseMultipart(boundary, bodyBuf) {
 }
 
 // ── List assets ─────────────────────────────────────────────────────────────
-function handleListAssets(res) {
+async function handleListAssets(res) {
   try {
-    const files = fs.readdirSync(UPLOADS_DIR)
-      .filter(f => {
-        const ext = path.extname(f).slice(1).toLowerCase();
-        return ALLOWED_EXT.has(ext);
-      })
-      .map(f => {
-        const fullPath = path.join(UPLOADS_DIR, f);
-        const stat = fs.statSync(fullPath);
-        const ext = path.extname(f).slice(1).toLowerCase();
-        return {
-          name: f,
-          url: 'assets/uploads/' + f,
-          size: stat.size,
-          ext: ext,
-          modified: Math.floor(stat.mtimeMs / 1000)
-        };
-      })
-      .sort((a, b) => b.modified - a.modified); // newest first
+    let savedAssets = [];
+    const assetsFile = path.join(ROOT, 'data', 'assets.json');
+    if (fs.existsSync(assetsFile)) {
+      try {
+        const raw = fs.readFileSync(assetsFile, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) savedAssets = parsed;
+      } catch {}
+    }
 
-    json(res, 200, { success: true, assets: files });
+    let dbAssets = [];
+    if (tidbClient) {
+      try {
+        dbAssets = await tidbClient.execute(`
+          SELECT name, url, size, ext, UNIX_TIMESTAMP(uploaded_at) as modified 
+          FROM aether_assets 
+          ORDER BY uploaded_at DESC
+        `);
+      } catch (err) {
+        // silent fallback
+      }
+    }
+
+    let localFiles = [];
+    if (fs.existsSync(UPLOADS_DIR)) {
+      localFiles = fs.readdirSync(UPLOADS_DIR)
+        .filter(f => {
+          const ext = path.extname(f).slice(1).toLowerCase();
+          return ALLOWED_EXT.has(ext);
+        })
+        .map(f => {
+          const fullPath = path.join(UPLOADS_DIR, f);
+          const stat = fs.statSync(fullPath);
+          const ext = path.extname(f).slice(1).toLowerCase();
+          return {
+            name: f,
+            url: 'assets/uploads/' + f,
+            size: stat.size,
+            ext: ext,
+            modified: Math.floor(stat.mtimeMs / 1000)
+          };
+        });
+    }
+
+    const seen = new Set();
+    const combined = [...dbAssets, ...savedAssets, ...localFiles].filter(a => {
+      const key = (a.url || a.name || '').toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).sort((a, b) => (b.modified || 0) - (a.modified || 0));
+
+    json(res, 200, { success: true, assets: combined });
+  } catch (err) {
+    json(res, 500, { success: false, error: err.message });
+  }
+}
+
+// ── Save asset (Cloudinary asset register) ──────────────────────────────────
+async function handleSaveAsset(req, res) {
+  try {
+    const bodyStr = (await readBody(req)).toString('utf8');
+    const asset = JSON.parse(bodyStr || '{}');
+    const name = asset.name || ('asset_' + Date.now());
+    const url = asset.url || '';
+    const size = Number(asset.size) || 0;
+    const ext = (asset.ext || path.extname(name).replace('.', '') || 'jpg').toLowerCase();
+    const mimeType = asset.mime_type || 'image/' + ext;
+
+    if (tidbClient && url) {
+      try {
+        await tidbClient.execute(`
+          INSERT INTO aether_assets (id, name, url, size, ext, mime_type, uploaded_at)
+          VALUES (?, ?, ?, ?, ?, ?, NOW(6))
+          ON DUPLICATE KEY UPDATE url = VALUES(url), size = VALUES(size), ext = VALUES(ext), mime_type = VALUES(mime_type)
+        `, [asset.id || ('asset_' + Date.now()), name, url, size, ext, mimeType]);
+      } catch (err) {
+        console.warn('[TiDB save_asset]', err.message);
+      }
+    }
+
+    const assetsFile = path.join(ROOT, 'data', 'assets.json');
+    let list = [];
+    if (fs.existsSync(assetsFile)) {
+      try { list = JSON.parse(fs.readFileSync(assetsFile, 'utf8')); } catch {}
+    }
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(a => a.name !== name && a.url !== url);
+    list.unshift({
+      id: asset.id || ('asset_' + Date.now()),
+      name,
+      url,
+      size,
+      ext,
+      mime_type: mimeType,
+      provider: 'cloudinary',
+      modified: Math.floor(Date.now() / 1000)
+    });
+    fs.writeFileSync(assetsFile, JSON.stringify(list.slice(0, 500), null, 2), 'utf8');
+
+    json(res, 200, { success: true, asset: { name, url } });
   } catch (err) {
     json(res, 500, { success: false, error: err.message });
   }
@@ -329,9 +410,26 @@ http.createServer(async (req, res) => {
       return;
     }
 
+    // GET: get_cloudinary_config
+    if (req.method === 'GET' && action === 'get_cloudinary_config') {
+      json(res, 200, {
+        success: true,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'xzglscdg',
+        uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || 'atether_uploads',
+        enabled: true
+      });
+      return;
+    }
+
+    // POST: save_asset
+    if (req.method === 'POST' && action === 'save_asset') {
+      await handleSaveAsset(req, res);
+      return;
+    }
+
     // GET: list_assets
     if (req.method === 'GET' && action === 'list_assets') {
-      handleListAssets(res);
+      await handleListAssets(res);
       return;
     }
 

@@ -1609,10 +1609,19 @@ class AetherApp {
             <span style="font-size:1.4rem;">🖼️</span>
             <div>
               <div style="font-weight:700;font-size:1.05rem;">Media Library</div>
-              <div style="font-size:0.78rem;color:var(--text-dim);">Upload &amp; manage your site assets</div>
+              <div style="font-size:0.78rem;color:var(--text-dim);display:flex;align-items:center;gap:8px;">
+                <span>Upload &amp; manage your site assets</span>
+                <span class="media-cloud-badge" id="media-cloud-badge" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:12px;background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:#38bdf8;font-size:0.7rem;font-weight:600;">
+                  <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38bdf8;"></span>
+                  Cloudinary: xzglscdg
+                </span>
+              </div>
             </div>
           </div>
-          <button class="media-modal-close" id="media-modal-close">✕</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="topbar-btn" id="media-btn-cloud-config" style="padding:4px 10px;font-size:0.75rem;background:rgba(255,255,255,0.06);border-color:rgba(255,255,255,0.18);color:#cbd5e1;" title="Configure Cloudinary settings">⚙️ Cloudinary</button>
+            <button class="media-modal-close" id="media-modal-close">✕</button>
+          </div>
         </div>
 
         <div class="media-upload-zone" id="media-upload-zone">
@@ -1621,7 +1630,7 @@ class AetherApp {
             <div style="font-size:1.8rem;line-height:1;">☁️</div>
             <div style="flex:1;">
               <div style="font-weight:600;font-size:0.92rem;color:#fff;">Click to upload or drag &amp; drop files here</div>
-              <div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;">Supports JPG, PNG, GIF, WebP, SVG, MP4, WebM, PDF</div>
+              <div style="font-size:0.75rem;color:var(--text-dim);margin-top:2px;" id="media-upload-caption">Cloudinary CDN Storage &bull; Cloud: <strong style="color:#38bdf8;">xzglscdg</strong> &bull; Preset: <strong style="color:#e2e8f0;">atether_uploads</strong></div>
             </div>
             <button type="button" class="topbar-btn" style="pointer-events:none;background:rgba(99,102,241,0.18);border-color:rgba(99,102,241,0.4);color:#a5b4fc;font-size:0.8rem;padding:6px 14px;">Browse Files</button>
           </div>
@@ -1752,6 +1761,11 @@ class AetherApp {
         setSelection(null);
       }
     };
+
+    // Cloudinary settings popup
+    document.getElementById('media-btn-cloud-config')?.addEventListener('click', () => {
+      this.showCloudinaryDialog();
+    });
 
     // File upload via click
     document.getElementById('media-upload-trigger').addEventListener('click', () => {
@@ -2027,8 +2041,96 @@ class AetherApp {
     });
   }
 
+  getCloudinaryConfig() {
+    try {
+      if (typeof state !== 'undefined' && state && state.getCloudinaryConfig) {
+        return state.getCloudinaryConfig();
+      }
+    } catch {}
+    return { cloudName: 'xzglscdg', uploadPreset: 'atether_uploads', enabled: true };
+  }
+
+  showCloudinaryDialog() {
+    document.getElementById('cloudinary-settings-modal')?.remove();
+    const cur = this.getCloudinaryConfig();
+    const modal = document.createElement('div');
+    modal.id = 'cloudinary-settings-modal';
+    modal.className = 'media-modal-overlay';
+    modal.style.zIndex = '100005';
+    modal.innerHTML = `
+      <div class="media-modal-panel" style="max-width:480px;padding:24px;background:#111827;border:1px solid rgba(56,189,248,0.3);border-radius:14px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.7);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(56,189,248,0.15);display:flex;align-items:center;justify-content:center;color:#38bdf8;font-size:1.2rem;">☁️</div>
+            <div>
+              <div style="font-weight:700;font-size:1.05rem;color:#f8fafc;">Cloudinary CDN Settings</div>
+              <div style="font-size:0.75rem;color:#94a3b8;">High-speed media storage &amp; image optimization</div>
+            </div>
+          </div>
+          <button id="close-cloud-dialog" style="background:none;border:none;color:#94a3b8;font-size:1.2rem;cursor:pointer;">✕</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:14px;font-size:0.85rem;">
+          <div>
+            <label style="display:block;margin-bottom:5px;font-weight:600;color:#cbd5e1;">Cloudinary Cloud Name</label>
+            <input type="text" id="cloud-cfg-name" value="${cur.cloudName || 'xzglscdg'}" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#f8fafc;font-family:monospace;" />
+          </div>
+
+          <div>
+            <label style="display:block;margin-bottom:5px;font-weight:600;color:#cbd5e1;">Upload Preset (Unsigned)</label>
+            <input type="text" id="cloud-cfg-preset" value="${cur.uploadPreset || 'atether_uploads'}" style="width:100%;padding:8px 12px;background:#1e293b;border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#f8fafc;font-family:monospace;" />
+            <div style="font-size:0.72rem;color:#64748b;margin-top:4px;">Must be configured as an "Unsigned" preset in Cloudinary Settings &gt; Upload.</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+            <input type="checkbox" id="cloud-cfg-enabled" ${cur.enabled !== false ? 'checked' : ''} style="accent-color:#38bdf8;width:16px;height:16px;cursor:pointer;" />
+            <label for="cloud-cfg-enabled" style="color:#e2e8f0;font-weight:500;cursor:pointer;">Enable direct Cloudinary uploads for all images</label>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:22px;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;">
+          <button id="cancel-cloud-dialog" class="topbar-btn">Cancel</button>
+          <button id="save-cloud-dialog" class="topbar-btn topbar-btn-publish" style="background:#0284c7;border-color:#38bdf8;">Save Cloudinary Settings</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const close = () => modal.remove();
+    modal.querySelector('#close-cloud-dialog').onclick = close;
+    modal.querySelector('#cancel-cloud-dialog').onclick = close;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+
+    modal.querySelector('#save-cloud-dialog').onclick = () => {
+      const name = modal.querySelector('#cloud-cfg-name').value.trim() || 'xzglscdg';
+      const preset = modal.querySelector('#cloud-cfg-preset').value.trim() || 'atether_uploads';
+      const enabled = modal.querySelector('#cloud-cfg-enabled').checked;
+
+      if (typeof state !== 'undefined' && state.setCloudinaryConfig) {
+        state.setCloudinaryConfig(name, preset, enabled);
+        state.saveCurrentSite();
+      }
+
+      // Update badge in Media Library
+      const badge = document.getElementById('media-cloud-badge');
+      if (badge) {
+        badge.innerHTML = `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#38bdf8;"></span>Cloudinary: ${name}`;
+      }
+      const caption = document.getElementById('media-upload-caption');
+      if (caption) {
+        caption.innerHTML = `Cloudinary CDN Storage &bull; Cloud: <strong style="color:#38bdf8;">${name}</strong> &bull; Preset: <strong style="color:#e2e8f0;">${preset}</strong>`;
+      }
+
+      if (this.canvas && this.canvas.showToast) {
+        this.canvas.showToast('☁️ Cloudinary settings saved!', 'success');
+      }
+      close();
+    };
+  }
+
   /**
-   * Upload files with frontend duplicate detection.
+   * Upload files with frontend duplicate detection and Cloudinary CDN storage.
    * @param {File[]} files - Files to upload
    * @param {Array} existingAssets - Currently loaded asset list (for duplicate check)
    * @param {Function} onComplete - Called after all uploads finish
@@ -2060,6 +2162,8 @@ class AetherApp {
       }
     }
 
+    const cloudCfg = this.getCloudinaryConfig();
+
     for (const file of readyFiles) {
       // Sanitize filename the same way the backend does
       const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
@@ -2080,26 +2184,89 @@ class AetherApp {
         overwrite = (action === 'replace');
       }
 
-      statusText.textContent = `Uploading ${file.name}...`;
-      const formData = new FormData();
-      formData.append('file', file);
-      if (overwrite) {
-        formData.append('overwrite', '1');
-      }
-      try {
-        formData.append('admin_token', getAdminToken());
-        const res = await fetch('api.php?action=upload', { method: 'POST', body: formData });
-        const result = await res.json();
-        if (result.success) {
-          uploaded++;
-          // Add the new name so subsequent files in the same batch also detect it
-          existingNames.add((result.name || sanitizedName).toLowerCase());
-        } else {
-          console.error('Upload rejected:', result.error);
+      let uploadSuccess = false;
+
+      // 1. Direct Cloudinary CDN upload (no hosting file limits)
+      if (cloudCfg.enabled !== false && cloudCfg.cloudName && cloudCfg.uploadPreset) {
+        try {
+          statusText.textContent = `Uploading ${file.name} to Cloudinary...`;
+          const cFormData = new FormData();
+          cFormData.append('file', file);
+          cFormData.append('upload_preset', cloudCfg.uploadPreset);
+          cFormData.append('tags', 'aetherbuilder');
+
+          const isDocOrVideo = file.type?.startsWith('video/') || file.type?.startsWith('audio/') || file.type?.includes('pdf') || (file.name && file.name.endsWith('.pdf'));
+          const endpointType = isDocOrVideo ? 'auto' : 'image';
+          const cEndpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudCfg.cloudName)}/${endpointType}/upload`;
+
+          const cRes = await fetch(cEndpoint, {
+            method: 'POST',
+            body: cFormData
+          });
+
+          const cData = await cRes.json();
+          if (cRes.ok && cData && (cData.secure_url || cData.url)) {
+            const finalUrl = cData.secure_url || cData.url;
+            const finalSize = cData.bytes || file.size;
+            const finalExt = (cData.format || ext || 'jpg').toLowerCase();
+            const finalName = sanitizedName;
+
+            uploaded++;
+            uploadSuccess = true;
+            existingNames.add(sanitizedName.toLowerCase());
+
+            // Register asset with backend (saves to TiDB aether_assets & local data/assets.json)
+            try {
+              await fetch('api.php?action=save_asset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: cData.public_id || ('asset_' + Date.now()),
+                  name: finalName,
+                  url: finalUrl,
+                  size: finalSize,
+                  ext: finalExt,
+                  mime_type: file.type || ('image/' + finalExt),
+                  admin_token: getAdminToken()
+                })
+              });
+            } catch (regErr) {
+              console.warn('[Cloudinary save_asset error]', regErr);
+            }
+
+            progressFill.style.width = `${((uploaded + skipped) / total) * 100}%`;
+            statusText.textContent = `Uploaded ${file.name} to Cloudinary ✓`;
+          } else {
+            console.warn('[Cloudinary upload rejected]', cData);
+            throw new Error(cData?.error?.message || 'Cloudinary upload rejected');
+          }
+        } catch (cErr) {
+          console.warn('[Direct Cloudinary upload failed, using fallback]', cErr);
         }
-        progressFill.style.width = `${((uploaded + skipped) / total) * 100}%`;
-      } catch (err) {
-        console.error('Upload failed:', err);
+      }
+
+      // 2. Local/server fallback
+      if (!uploadSuccess) {
+        statusText.textContent = `Uploading ${file.name} to server...`;
+        const formData = new FormData();
+        formData.append('file', file);
+        if (overwrite) {
+          formData.append('overwrite', '1');
+        }
+        try {
+          formData.append('admin_token', getAdminToken());
+          const res = await fetch('api.php?action=upload', { method: 'POST', body: formData });
+          const result = await res.json();
+          if (result.success) {
+            uploaded++;
+            existingNames.add((result.name || sanitizedName).toLowerCase());
+          } else {
+            console.error('Upload rejected:', result.error);
+          }
+          progressFill.style.width = `${((uploaded + skipped) / total) * 100}%`;
+        } catch (err) {
+          console.error('Upload failed:', err);
+        }
       }
     }
 
@@ -5201,18 +5368,42 @@ ${varCss}
                 (function(name, file) {
                   fileUploadPromises.push(new Promise(async function(resolve) {
                     try {
-                      var formData = new FormData();
-                      formData.append('file', file);
-                      var upRes = await fetch(apiBase + '?action=upload', {
-                        method: 'POST',
-                        body: formData
-                      });
-                      var upData = await upRes.json();
-                      if (upData && upData.success && upData.url) {
-                        var fileLink = window.location.origin + '/' + upData.url.replace(/^\//, '');
-                        payload[name] = fileLink;
+                      var uploadedUrl = null;
+                      // 1. Try Cloudinary direct upload first
+                      try {
+                        var cloudForm = new FormData();
+                        cloudForm.append('file', file);
+                        cloudForm.append('upload_preset', 'atether_uploads');
+                        cloudForm.append('tags', 'aether_registration');
+                        var isDoc = (file.type && file.type.indexOf('pdf') !== -1) || (file.name && file.name.indexOf('.pdf') !== -1);
+                        var cUrl = 'https://api.cloudinary.com/v1_1/xzglscdg/' + (isDoc ? 'auto' : 'image') + '/upload';
+                        var cRes = await fetch(cUrl, { method: 'POST', body: cloudForm });
+                        var cData = await cRes.json();
+                        if (cRes.ok && cData && (cData.secure_url || cData.url)) {
+                          uploadedUrl = cData.secure_url || cData.url;
+                        }
+                      } catch (cErr) {
+                        console.warn('[Form Cloudinary upload fallback]', cErr);
+                      }
+
+                      // 2. Server upload fallback
+                      if (!uploadedUrl) {
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        var upRes = await fetch(apiBase + '?action=upload', {
+                          method: 'POST',
+                          body: formData
+                        });
+                        var upData = await upRes.json();
+                        if (upData && upData.success && upData.url) {
+                          uploadedUrl = upData.url.indexOf('http') === 0 ? upData.url : (window.location.origin + '/' + upData.url.replace(/^\//, ''));
+                        }
+                      }
+
+                      if (uploadedUrl) {
+                        payload[name] = uploadedUrl;
                         payload[name + '_filename'] = file.name;
-                        payload[name + '_url'] = fileLink;
+                        payload[name + '_url'] = uploadedUrl;
                       } else {
                         payload[name] = file.name + ' (Uploaded)';
                       }

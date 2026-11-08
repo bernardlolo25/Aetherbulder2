@@ -136,6 +136,11 @@ class BuilderState {
         enabled: true,
         templateName: 'live_canvas',
         maxBackups: 5
+      },
+      cloudinary: {
+        cloudName: 'xzglscdg',
+        uploadPreset: 'atether_uploads',
+        enabled: true
       }
     };
 
@@ -934,6 +939,24 @@ class BuilderState {
 
   isTemplateAutosaveEnabled() {
     return this.siteSettings?.templateAutosave?.enabled !== false;
+  }
+
+  getCloudinaryConfig() {
+    return {
+      cloudName: this.siteSettings?.cloudinary?.cloudName || 'xzglscdg',
+      uploadPreset: this.siteSettings?.cloudinary?.uploadPreset || 'atether_uploads',
+      enabled: this.siteSettings?.cloudinary?.enabled !== false
+    };
+  }
+
+  setCloudinaryConfig(cloudName, uploadPreset, enabled = true) {
+    if (!this.siteSettings) this.siteSettings = {};
+    this.siteSettings.cloudinary = {
+      cloudName: cloudName || 'xzglscdg',
+      uploadPreset: uploadPreset || 'atether_uploads',
+      enabled: enabled !== false
+    };
+    this.notify('siteSettings');
   }
 
   async pruneTemplateBackups(maxAllowed = 5) {

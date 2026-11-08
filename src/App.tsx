@@ -595,7 +595,7 @@ export function getDbPool() {
                     File Uploads & WebSockets
                   </div>
                   <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                    If your app saved files locally (<code className="text-slate-300">/uploads</code>), use S3/Cloudflare R2/Vercel Blob with URLs stored in TiDB. For WebSockets, use Pusher, Ably, or Server-Sent Events (SSE).
+                    Integrated with Cloudinary CDN (Cloud: <strong className="text-sky-300">xzglscdg</strong>, Preset: <strong className="text-slate-200">atether_uploads</strong>) for global edge image &amp; media storage, with URLs stored directly in TiDB <code className="text-slate-300">aether_assets</code>.
                   </p>
                 </div>
               </div>

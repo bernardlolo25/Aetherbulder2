@@ -960,9 +960,65 @@ if ($action === 'publish' && $method === 'POST') {
     send_json(200, ['ok' => true, 'success' => true, 'revisionId' => $newRev['id'], 'template' => 'assets/uploads/template_live_canvas.json']);
 }
 
+// ── GET: get_cloudinary_config ────────────────────────────────────────────────
+if ($action === 'get_cloudinary_config' && $method === 'GET') {
+    $cloudName = getenv('CLOUDINARY_CLOUD_NAME') ?: 'xzglscdg';
+    $preset = getenv('CLOUDINARY_UPLOAD_PRESET') ?: 'atether_uploads';
+    send_json(200, [
+        'success'      => true,
+        'cloudName'    => $cloudName,
+        'uploadPreset' => $preset,
+        'enabled'      => true
+    ]);
+}
+
+// ── POST: save_asset ──────────────────────────────────────────────────────────
+if ($action === 'save_asset' && $method === 'POST') {
+    require_admin_token();
+    $body = @json_decode(get_request_body(), true) ?: [];
+    $name = isset($body['name']) ? safe_basename($body['name']) : ('asset_' . time());
+    $url  = $body['url'] ?? '';
+    if (!$url) send_json(400, ['success' => false, 'error' => 'No asset URL provided']);
+
+    $assetsFile = DATA_DIR . '/assets.json';
+    $assets = [];
+    if (file_exists($assetsFile)) {
+        $assets = @json_decode(file_get_contents($assetsFile), true) ?: [];
+    }
+    if (!is_array($assets)) $assets = [];
+
+    // Filter duplicates
+    $filtered = array_values(array_filter($assets, function($a) use ($name, $url) {
+        return ($a['name'] ?? '') !== $name && ($a['url'] ?? '') !== $url;
+    }));
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION)) ?: ($body['ext'] ?? 'jpg');
+    array_unshift($filtered, [
+        'id'        => $body['id'] ?? ('asset_' . time()),
+        'name'      => $name,
+        'url'       => $url,
+        'size'      => intval($body['size'] ?? 0),
+        'ext'       => $ext,
+        'mime_type' => $body['mime_type'] ?? 'image/jpeg',
+        'provider'  => 'cloudinary',
+        'modified'  => time()
+    ]);
+    @file_put_contents($assetsFile, json_encode(array_slice($filtered, 0, 500), JSON_PRETTY_PRINT));
+    send_json(200, ['success' => true, 'asset' => ['name' => $name, 'url' => $url]]);
+}
+
 // ── GET: list_assets ─────────────────────────────────────────────────────────
 if ($action === 'list_assets' && $method === 'GET') {
     $files = [];
+
+    // Read saved Cloudinary / remote assets from data/assets.json
+    $assetsFile = DATA_DIR . '/assets.json';
+    if (file_exists($assetsFile)) {
+        $saved = @json_decode(file_get_contents($assetsFile), true);
+        if (is_array($saved)) {
+            $files = $saved;
+        }
+    }
+
     if (!is_dir(UPLOADS_DIR)) {
         @mkdir(UPLOADS_DIR, 0777, true);
         @chmod(UPLOADS_DIR, 0777);
@@ -985,10 +1041,20 @@ if ($action === 'list_assets' && $method === 'GET') {
                 'modified' => ($stat && isset($stat['mtime'])) ? $stat['mtime'] : (@filemtime($fullPath) ?: time())
             ];
         }
-        // Sort newest first
-        usort($files, function($a, $b) { return ($b['modified'] ?? 0) - ($a['modified'] ?? 0); });
     }
-    send_json(200, ['success' => true, 'assets' => $files]);
+
+    // Deduplicate by URL and name
+    $seen = [];
+    $deduped = [];
+    foreach ($files as $item) {
+        $k = strtolower(($item['url'] ?? '') . '|' . ($item['name'] ?? ''));
+        if (isset($seen[$k])) continue;
+        $seen[$k] = true;
+        $deduped[] = $item;
+    }
+    // Sort newest first
+    usort($deduped, function($a, $b) { return ($b['modified'] ?? 0) - ($a['modified'] ?? 0); });
+    send_json(200, ['success' => true, 'assets' => $deduped]);
 }
 
 // ── POST: upload ──────────────────────────────────────────────────────────────
@@ -1047,12 +1113,29 @@ if ($action === 'upload' && $method === 'POST') {
 // ── POST: delete_asset ───────────────────────────────────────────────────────
 if ($action === 'delete_asset' && $method === 'POST') {
     require_admin_token();
-    $body = @json_decode(get_request_body(), true);
+    $body = @json_decode(get_request_body(), true) ?: [];
     $name = isset($body['name']) ? safe_basename($body['name']) : '';
-    if (!$name) send_json(400, ['success' => false, 'error' => 'No filename provided']);
-    $target = UPLOADS_DIR . '/' . $name;
-    if (!file_exists($target)) send_json(404, ['success' => false, 'error' => 'File not found']);
-    @unlink($target);
+    $url  = $body['url'] ?? '';
+    if (!$name && !$url) send_json(400, ['success' => false, 'error' => 'No filename or URL provided']);
+
+    // Remove from data/assets.json if present
+    $assetsFile = DATA_DIR . '/assets.json';
+    if (file_exists($assetsFile)) {
+        $saved = @json_decode(file_get_contents($assetsFile), true);
+        if (is_array($saved)) {
+            $filtered = array_values(array_filter($saved, function($a) use ($name, $url) {
+                return ($a['name'] ?? '') !== $name && ($a['url'] ?? '') !== $url && ($a['url'] ?? '') !== $name;
+            }));
+            @file_put_contents($assetsFile, json_encode($filtered, JSON_PRETTY_PRINT));
+        }
+    }
+
+    if ($name) {
+        $target = UPLOADS_DIR . '/' . $name;
+        if (file_exists($target)) {
+            @unlink($target);
+        }
+    }
     send_json(200, ['success' => true, 'message' => 'Asset deleted.']);
 }
 

@@ -462,7 +462,118 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return sendJson(res, 200, { success: true, message: 'Restored successfully', source: 'local' });
     }
 
-    // ── 13. Assets: list_assets & delete_asset ────────────────────────────────
+    // ── 13. Assets & Cloudinary: list_assets, save_asset, upload, delete_asset ──
+    if (action === 'get_cloudinary_config') {
+      return sendJson(res, 200, {
+        success: true,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'xzglscdg',
+        uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET || 'atether_uploads',
+        enabled: true
+      });
+    }
+
+    if (action === 'save_asset') {
+      const asset = req.body || {};
+      const name = asset.name || ('asset_' + Date.now());
+      const url = asset.url || '';
+      const size = Number(asset.size) || 0;
+      const ext = (asset.ext || path.extname(name).replace('.', '') || 'jpg').toLowerCase();
+      const mimeType = asset.mime_type || asset.mimeType || (ext === 'png' ? 'image/png' : 'image/jpeg');
+      const assetId = asset.id || ('asset_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6));
+
+      if (useTiDB && url) {
+        try {
+          await executeTiDB(`
+            INSERT INTO aether_assets (id, name, url, size, ext, mime_type, uploaded_at)
+            VALUES (?, ?, ?, ?, ?, ?, NOW(6))
+            ON DUPLICATE KEY UPDATE url = VALUES(url), size = VALUES(size), ext = VALUES(ext), mime_type = VALUES(mime_type)
+          `, [assetId, name, url, size, ext, mimeType]);
+        } catch (err) {
+          console.warn('[TiDB save_asset]', err);
+        }
+      }
+
+      // Also persist to data/assets.json for local/file fallback
+      try {
+        const assetsFile = path.join(process.cwd(), 'data', 'assets.json');
+        let list: any[] = [];
+        if (fs.existsSync(assetsFile)) {
+          try { list = JSON.parse(fs.readFileSync(assetsFile, 'utf8')); } catch {}
+        }
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(a => a.name !== name && a.url !== url);
+        list.unshift({
+          id: assetId,
+          name,
+          url,
+          size,
+          ext,
+          mime_type: mimeType,
+          provider: 'cloudinary',
+          modified: Math.floor(Date.now() / 1000)
+        });
+        fs.writeFileSync(assetsFile, JSON.stringify(list.slice(0, 500), null, 2), 'utf8');
+      } catch (err) {
+        console.warn('[save_asset local]', err);
+      }
+
+      return sendJson(res, 200, { success: true, asset: { id: assetId, name, url, size, ext } });
+    }
+
+    if (action === 'upload') {
+      // Server-side upload handler (Cloudinary proxy & local fallback)
+      const { file, fileName, uploadPreset, cloudName } = req.body || {};
+      const cName = cloudName || process.env.CLOUDINARY_CLOUD_NAME || 'xzglscdg';
+      const cPreset = uploadPreset || process.env.CLOUDINARY_UPLOAD_PRESET || 'atether_uploads';
+
+      if (file) {
+        try {
+          const form = new URLSearchParams();
+          form.append('file', file);
+          form.append('upload_preset', cPreset);
+          form.append('tags', 'aetherbuilder');
+
+          const cRes = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cName)}/auto/upload`, {
+            method: 'POST',
+            body: form
+          });
+          const cData: any = await cRes.json();
+          if (cRes.ok && cData && (cData.secure_url || cData.url)) {
+            const assetName = fileName || (cData.original_filename ? `${cData.original_filename}.${cData.format || 'jpg'}` : `upload_${Date.now()}.${cData.format || 'jpg'}`);
+            const secureUrl = cData.secure_url || cData.url;
+            const ext = (cData.format || path.extname(assetName).replace('.', '') || 'jpg').toLowerCase();
+            const bytes = cData.bytes || 0;
+
+            if (useTiDB) {
+              try {
+                await executeTiDB(`
+                  INSERT INTO aether_assets (id, name, url, size, ext, mime_type, uploaded_at)
+                  VALUES (?, ?, ?, ?, ?, ?, NOW(6))
+                  ON DUPLICATE KEY UPDATE url = VALUES(url), size = VALUES(size)
+                `, ['asset_' + Date.now(), assetName, secureUrl, bytes, ext, 'image/' + ext]);
+              } catch (err) {
+                console.warn('[TiDB upload asset]', err);
+              }
+            }
+
+            return sendJson(res, 200, {
+              success: true,
+              name: assetName,
+              url: secureUrl,
+              size: bytes,
+              ext,
+              provider: 'cloudinary'
+            });
+          } else {
+            return sendJson(res, 400, { success: false, error: cData?.error?.message || 'Cloudinary upload rejected' });
+          }
+        } catch (err: any) {
+          return sendJson(res, 500, { success: false, error: err.message || 'Server upload failed' });
+        }
+      }
+      return sendJson(res, 400, { success: false, error: 'No file provided for upload' });
+    }
+
     if (action === 'list_assets') {
       let dbAssets: any[] = [];
       if (useTiDB) {
@@ -475,6 +586,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (err) {
           console.warn('[TiDB list_assets]', err);
         }
+      }
+
+      // Read saved assets from data/assets.json (Cloudinary CDN links)
+      let savedAssets: any[] = [];
+      const assetsFile = path.join(process.cwd(), 'data', 'assets.json');
+      if (fs.existsSync(assetsFile)) {
+        try {
+          const raw = fs.readFileSync(assetsFile, 'utf8');
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) savedAssets = parsed;
+        } catch {}
       }
 
       // Read local uploads directory if available
@@ -496,11 +618,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch {}
       }
 
-      // Merge results avoiding duplicate names
+      // Merge results avoiding duplicate names/urls
       const seen = new Set<string>();
-      const combined = [...dbAssets, ...localFiles].filter(a => {
-        if (seen.has(a.name)) return false;
-        seen.add(a.name);
+      const combined = [...dbAssets, ...savedAssets, ...localFiles].filter(a => {
+        const key = (a.url || a.name || '').toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
       });
 
@@ -508,9 +631,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'delete_asset') {
-      const { name } = req.body || {};
+      const { name, url } = req.body || {};
       if (useTiDB && name) {
-        await executeTiDB('DELETE FROM aether_assets WHERE name = ?', [name]);
+        await executeTiDB('DELETE FROM aether_assets WHERE name = ? OR url = ?', [name, url || '']);
+      }
+      // Also remove from data/assets.json
+      const assetsFile = path.join(process.cwd(), 'data', 'assets.json');
+      if (fs.existsSync(assetsFile)) {
+        try {
+          const list = JSON.parse(fs.readFileSync(assetsFile, 'utf8'));
+          if (Array.isArray(list)) {
+            const updated = list.filter((a: any) => a.name !== name && a.url !== url && a.url !== name);
+            fs.writeFileSync(assetsFile, JSON.stringify(updated, null, 2), 'utf8');
+          }
+        } catch {}
       }
       const safeName = path.basename(name || '');
       const localTarget = path.join(process.cwd(), 'assets', 'uploads', safeName);
