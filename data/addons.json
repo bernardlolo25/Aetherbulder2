@@ -3251,5 +3251,147 @@
     "customCss": "\n.wb-faq-addon-wrapper {\n  padding: 40px 20px;\n  max-width: 900px;\n  margin: 0 auto;\n}\n.wb-faq-header {\n  text-align: center;\n  margin-bottom: 30px;\n}\n.wb-faq-title {\n  font-size: 2rem;\n  font-weight: 800;\n  color: #ffffff;\n  margin: 0 0 8px 0;\n}\n.wb-faq-sub {\n  font-size: 0.95rem;\n  color: #94a3b8;\n  margin: 0 0 20px 0;\n}\n.wb-faq-search-box {\n  max-width: 460px;\n  margin: 0 auto;\n  position: relative;\n  display: flex;\n  align-items: center;\n  background: rgba(15, 23, 42, 0.7);\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 10px;\n  padding: 0 14px;\n}\n.wb-faq-search-input {\n  width: 100%;\n  padding: 10px 10px 10px 8px;\n  background: transparent;\n  border: none;\n  color: #ffffff;\n  font-size: 0.9rem;\n  outline: none;\n}\n.wb-faq-list {\n  display: flex;\n  flex-direction: column;\n  gap: 12px;\n}\n.wb-faq-item {\n  background: rgba(19, 27, 46, 0.7);\n  border: 1px solid rgba(255, 255, 255, 0.08);\n  border-radius: 12px;\n  overflow: hidden;\n  transition: all 0.25s ease;\n}\n.wb-faq-item[open] {\n  border-color: var(--faq-accent, #38bdf8);\n  box-shadow: 0 10px 25px -10px rgba(56, 189, 248, 0.25);\n}\n.wb-faq-question {\n  padding: 18px 22px;\n  font-size: 1rem;\n  font-weight: 700;\n  color: #ffffff;\n  cursor: pointer;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  list-style: none;\n  user-select: none;\n}\n.wb-faq-question::-webkit-details-marker {\n  display: none;\n}\n.wb-faq-toggle-icon {\n  font-size: 1.4rem;\n  color: var(--faq-accent, #38bdf8);\n  transition: transform 0.25s ease;\n}\n.wb-faq-item[open] .wb-faq-toggle-icon {\n  transform: rotate(45deg);\n}\n.wb-faq-answer {\n  padding: 0 22px 18px 22px;\n  font-size: 0.9rem;\n  line-height: 1.6;\n  color: #cbd5e1;\n}\n",
     "enabled": true,
     "installedAt": "2026-11-05T11:13:12.890Z"
+  },
+  {
+    "id": "addon_nav_dropdown",
+    "name": "Navbar & Dropdown Menu",
+    "category": "addons",
+    "icon": "🧭",
+    "version": "1.0.0",
+    "author": "Aether Studio",
+    "description": "Responsive glass navigation bar with multi-level dropdown submenus and CTA button",
+    "enabled": true,
+    "defaultProps": {
+      "brandName": "AetherStudio",
+      "brandLink": "index.html",
+      "showCta": true,
+      "ctaText": "Get Started",
+      "ctaLink": "#",
+      "accentColor": "#6366f1",
+      "navItems": [
+        {
+          "label": "Home",
+          "link": "index.html"
+        },
+        {
+          "label": "Solutions",
+          "link": "#",
+          "children": [
+            {
+              "label": "Visual Builder",
+              "link": "#"
+            },
+            {
+              "label": "Add-on Studio",
+              "link": "#"
+            },
+            {
+              "label": "Cloud Hosting",
+              "link": "#"
+            }
+          ]
+        },
+        {
+          "label": "Resources",
+          "link": "#",
+          "children": [
+            {
+              "label": "Documentation",
+              "link": "#"
+            },
+            {
+              "label": "API Reference",
+              "link": "#"
+            },
+            {
+              "label": "Community Forum",
+              "link": "#"
+            }
+          ]
+        },
+        {
+          "label": "Pricing",
+          "link": "#pricing"
+        },
+        {
+          "label": "Contact",
+          "link": "#contact"
+        }
+      ]
+    },
+    "schema": {
+      "content": [
+        {
+          "key": "brandName",
+          "label": "Brand / Logo Text",
+          "type": "text"
+        },
+        {
+          "key": "brandLink",
+          "label": "Brand Link",
+          "type": "page-link"
+        },
+        {
+          "key": "navItems",
+          "label": "Navigation Links & Dropdowns",
+          "type": "repeater",
+          "fields": [
+            {
+              "key": "label",
+              "label": "Item Label",
+              "type": "text"
+            },
+            {
+              "key": "link",
+              "label": "Destination Link",
+              "type": "page-link"
+            },
+            {
+              "key": "children",
+              "label": "Submenu (Dropdown Items)",
+              "type": "repeater",
+              "fields": [
+                {
+                  "key": "label",
+                  "label": "Sub-item Label",
+                  "type": "text"
+                },
+                {
+                  "key": "link",
+                  "label": "Sub-item Link",
+                  "type": "page-link"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "key": "showCta",
+          "label": "Show Action Button",
+          "type": "toggle"
+        },
+        {
+          "key": "ctaText",
+          "label": "Button Label",
+          "type": "text"
+        },
+        {
+          "key": "ctaLink",
+          "label": "Button Link",
+          "type": "page-link"
+        }
+      ],
+      "style": [
+        {
+          "key": "accentColor",
+          "label": "Brand Accent Color",
+          "type": "color",
+          "default": "#6366f1"
+        }
+      ]
+    },
+    "template": "\n<header class=\"wb-addon-nav-bar\" style=\"--nav-accent: {{accentColor}};\">\n  <div class=\"wb-addon-nav-container\">\n    <a href=\"{{brandLink}}\" class=\"wb-addon-brand\">{{brandName}}</a>\n    <nav class=\"wb-addon-menu-wrap\">\n      <ul class=\"wb-addon-nav-ul\">\n        {{#each navItems}}\n          <li class=\"wb-addon-nav-li {{#if children}}is-dropdown{{/if}}\">\n            <a href=\"{{link}}\" class=\"wb-addon-nav-a\">\n              <span>{{label}}</span>\n              {{#if children}}<span class=\"wb-nav-caret\">▾</span>{{/if}}\n            </a>\n            {{#if children}}\n              <ul class=\"wb-addon-sub-ul\">\n                {{#each children}}\n                  <li class=\"wb-addon-sub-li\">\n                    <a href=\"{{link}}\" class=\"wb-addon-sub-a\">{{label}}</a>\n                  </li>\n                {{/each}}\n              </ul>\n            {{/if}}\n          </li>\n        {{/each}}\n      </ul>\n    </nav>\n    {{#if showCta}}\n      <div class=\"wb-addon-cta-wrap\">\n        <a href=\"{{ctaLink}}\" class=\"wb-addon-cta-btn\">{{ctaText}} &rarr;</a>\n      </div>\n    {{/if}}\n  </div>\n</header>",
+    "customCss": "\n.wb-addon-nav-bar {\n  width: 100%;\n  background: rgba(11, 15, 25, 0.85);\n  backdrop-filter: blur(16px);\n  border-bottom: 1px solid rgba(255, 255, 255, 0.08);\n  position: relative;\n  z-index: 50;\n  box-sizing: border-box;\n}\n.wb-addon-nav-container {\n  max-width: 1200px;\n  margin: 0 auto;\n  padding: 14px 24px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 20px;\n}\n.wb-addon-brand {\n  font-size: 1.25rem;\n  font-weight: 800;\n  color: #fff;\n  text-decoration: none;\n  letter-spacing: -0.02em;\n}\n.wb-addon-nav-ul {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  list-style: none;\n  margin: 0;\n  padding: 0;\n}\n.wb-addon-nav-li {\n  position: relative;\n}\n.wb-addon-nav-a {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  padding: 8px 14px;\n  border-radius: 8px;\n  color: #cbd5e1;\n  text-decoration: none;\n  font-size: 0.92rem;\n  font-weight: 500;\n  transition: all 0.2s ease;\n}\n.wb-addon-nav-a:hover {\n  color: #ffffff;\n  background: rgba(255, 255, 255, 0.06);\n}\n.wb-nav-caret {\n  font-size: 0.72rem;\n  transition: transform 0.2s ease;\n}\n.wb-addon-nav-li.is-dropdown:hover .wb-nav-caret {\n  transform: rotate(180deg);\n}\n.wb-addon-sub-ul {\n  position: absolute;\n  top: 100%;\n  left: 0;\n  min-width: 200px;\n  background: #0f172a;\n  border: 1px solid rgba(255, 255, 255, 0.12);\n  border-radius: 12px;\n  box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5);\n  list-style: none;\n  margin: 8px 0 0 0;\n  padding: 6px;\n  display: none;\n  opacity: 0;\n  transform: translateY(6px);\n  transition: opacity 0.2s ease, transform 0.2s ease;\n  z-index: 100;\n}\n.wb-addon-nav-li.is-dropdown:hover .wb-addon-sub-ul {\n  display: block;\n  opacity: 1;\n  transform: translateY(0);\n}\n.wb-addon-sub-a {\n  display: block;\n  padding: 8px 12px;\n  border-radius: 6px;\n  color: #94a3b8;\n  text-decoration: none;\n  font-size: 0.88rem;\n  transition: all 0.15s ease;\n}\n.wb-addon-sub-a:hover {\n  color: #ffffff;\n  background: rgba(99, 102, 241, 0.18);\n}\n.wb-addon-cta-btn {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 8px 18px;\n  border-radius: 8px;\n  background: var(--nav-accent, #6366f1);\n  color: #fff;\n  text-decoration: none;\n  font-weight: 600;\n  font-size: 0.88rem;\n  transition: filter 0.2s ease;\n}\n.wb-addon-cta-btn:hover {\n  filter: brightness(1.15);\n}\n",
+    "customJs": "\nfunction onMount(el, props) {\n  el.querySelectorAll('.wb-addon-nav-li.is-dropdown').forEach(function(item) {\n    var link = item.querySelector('.wb-addon-nav-a');\n    if (link) {\n      link.addEventListener('click', function(e) {\n        if (window.innerWidth <= 768 && item.querySelector('.wb-addon-sub-ul')) {\n          e.preventDefault();\n          var sub = item.querySelector('.wb-addon-sub-ul');\n          var isOpen = sub.style.display === 'block';\n          sub.style.display = isOpen ? 'none' : 'block';\n          sub.style.opacity = isOpen ? '0' : '1';\n        }\n      });\n    }\n  });\n}\n"
   }
 ]

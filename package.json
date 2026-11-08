@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
+    "build": "node build.js",
     "preview": "vite preview",
     "start": "node server.js",
     "clean": "rm -rf dist",
