@@ -71,8 +71,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
             return sendJson(res, 200, parsed);
           }
-        } catch (dbErr) {
-          console.warn('[TiDB get_site]', dbErr);
+        } catch (dbErr: any) {
+          if (!dbErr?.message?.includes('1045') && !dbErr?.message?.includes('Access denied')) {
+            console.warn('[TiDB get_site]', dbErr.message);
+          }
         }
       }
 
@@ -327,8 +329,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
             return sendJson(res, 200, { success: true, addons: parsed, source: 'tidb' });
           }
-        } catch (err) {
-          console.warn('[TiDB get_addons]', err);
+        } catch (err: any) {
+          if (!err?.message?.includes('1045') && !err?.message?.includes('Access denied')) {
+            console.warn('[TiDB get_addons]', err.message);
+          }
         }
       }
       const addons = readLocalJson<any[]>('data/addons.json', []);

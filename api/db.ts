@@ -7,6 +7,11 @@ type TiDBConnection = ReturnType<typeof connect>;
 let client: TiDBConnection | null = null;
 let tablesInitialized = false;
 
+// Circuit breaker to avoid flooding logs and failing requests if credentials are wrong
+let authErrorDetected = false;
+let lastAuthErrorTime = 0;
+const AUTH_RETRY_INTERVAL_MS = 60000; // 1 minute backoff for Error 1045
+
 /**
  * Normalizes DATABASE_URL to guarantee it connects to a writable database
  * (defaults to 'test' if database path is omitted or points to 'sys')
@@ -41,6 +46,13 @@ export function isTiDBConfigured(): boolean {
   );
 }
 
+export function resetTiDBClient(): void {
+  client = null;
+  authErrorDetected = false;
+  lastAuthErrorTime = 0;
+  tablesInitialized = false;
+}
+
 export function getTiDBClient(): TiDBConnection | null {
   if (client) return client;
 
@@ -55,7 +67,7 @@ export function getTiDBClient(): TiDBConnection | null {
     if (rawUrl) {
       const fixedUrl = normalizeDatabaseUrl(rawUrl);
       client = connect({ url: fixedUrl });
-      console.log('[TiDB] Connected via DATABASE_URL to:', fixedUrl.replace(/:[^:@]+@/, ':****@'));
+      console.log('[TiDB] Initialized via DATABASE_URL to database:', fixedUrl.replace(/:[^:@]+@/, ':****@'));
     } else if (host && username) {
       client = connect({
         host,
@@ -63,7 +75,7 @@ export function getTiDBClient(): TiDBConnection | null {
         password,
         database: cleanDb
       });
-      console.log(`[TiDB] Connected via individual env vars: Host=${host}, User=${username}, DB=${cleanDb}`);
+      console.log(`[TiDB] Initialized via individual env vars: Host=${host}, User=${username}, DB=${cleanDb}`);
     } else {
       return null;
     }
@@ -76,15 +88,30 @@ export function getTiDBClient(): TiDBConnection | null {
 }
 
 /**
- * Execute SQL on TiDB Cloud Serverless
+ * Execute SQL on TiDB Cloud Serverless with Error 1045 Circuit Breaker
  */
 export async function executeTiDB<T = any>(sql: string, params: any[] = []): Promise<T[]> {
+  if (authErrorDetected && Date.now() - lastAuthErrorTime < AUTH_RETRY_INTERVAL_MS) {
+    throw new Error('TiDB authentication paused due to invalid password (Error 1045). Using local fallback store.');
+  }
+
   const db = getTiDBClient();
   if (!db) {
-    throw new Error('TiDB is not configured. Please set DATABASE_URL environment variable.');
+    throw new Error('TiDB is not configured. Please set DATABASE_URL or TIDB_HOST/TIDB_USER/TIDB_PASSWORD.');
   }
-  const result = await db.execute(sql, params);
-  return result as T[];
+
+  try {
+    const result = await db.execute(sql, params);
+    authErrorDetected = false; // Reset circuit breaker on success
+    return result as T[];
+  } catch (err: any) {
+    if (err?.message?.includes('1045') || err?.message?.includes('Access denied')) {
+      authErrorDetected = true;
+      lastAuthErrorTime = Date.now();
+      console.warn('[TiDB Auth Notice] Error 1045: Access denied for user (incorrect password). Running in local fallback storage mode until password is updated.');
+    }
+    throw err;
+  }
 }
 
 /**
@@ -92,6 +119,10 @@ export async function executeTiDB<T = any>(sql: string, params: any[] = []): Pro
  */
 export async function ensureTiDBTables(): Promise<boolean> {
   if (tablesInitialized) return true;
+  if (authErrorDetected && Date.now() - lastAuthErrorTime < AUTH_RETRY_INTERVAL_MS) {
+    return false;
+  }
+
   const db = getTiDBClient();
   if (!db) return false;
 
@@ -101,7 +132,12 @@ export async function ensureTiDBTables(): Promise<boolean> {
       await db.execute(`CREATE DATABASE IF NOT EXISTS \`${targetDb}\`;`);
       await db.execute(`USE \`${targetDb}\`;`);
     } catch (e: any) {
-      console.warn('[TiDB] Pre-table DB use/create notice:', e.message);
+      if (e?.message?.includes('1045') || e?.message?.includes('Access denied')) {
+        authErrorDetected = true;
+        lastAuthErrorTime = Date.now();
+        console.warn('[TiDB Auth Notice] Password authentication failed. Tables will be initialized once valid credentials are provided.');
+        return false;
+      }
     }
 
     await db.execute(`
@@ -186,10 +222,17 @@ export async function ensureTiDBTables(): Promise<boolean> {
     `);
 
     tablesInitialized = true;
+    authErrorDetected = false;
     console.log('[TiDB] Tables verified and ready in database:', targetDb);
     return true;
-  } catch (err) {
-    console.error('[TiDB] Error initializing tables:', err);
+  } catch (err: any) {
+    if (err?.message?.includes('1045') || err?.message?.includes('Access denied')) {
+      authErrorDetected = true;
+      lastAuthErrorTime = Date.now();
+      console.warn('[TiDB Auth Notice] Password incorrect for TiDB user. Bypassing table init until credentials are updated.');
+    } else {
+      console.error('[TiDB] Error initializing tables:', err.message);
+    }
     return false;
   }
 }
